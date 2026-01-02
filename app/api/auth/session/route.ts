@@ -20,8 +20,6 @@ export async function GET(request: NextRequest) {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
-        hideGettingStarted: user.hideGettingStarted,
-        hideTutorials: user.hideTutorials,
       },
     })
   } catch (error) {

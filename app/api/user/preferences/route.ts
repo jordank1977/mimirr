@@ -18,15 +18,8 @@ export async function PATCH(request: NextRequest) {
       updatedAt: new Date(),
     }
 
-    // Update hideGettingStarted if provided (deprecated, use hideTutorials)
-    if (typeof body.hideGettingStarted === 'boolean') {
-      updateData.hideGettingStarted = body.hideGettingStarted
-    }
-
-    // Update hideTutorials if provided
-    if (typeof body.hideTutorials === 'boolean') {
-      updateData.hideTutorials = body.hideTutorials
-    }
+    // Note: User preferences like hideGettingStarted and hideTutorials have been removed
+    // This endpoint is kept for future preference updates
 
     const result = await db
       .update(users)

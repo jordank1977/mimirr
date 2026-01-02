@@ -11,8 +11,6 @@ interface User {
   email: string
   displayName: string
   role: string
-  hideGettingStarted?: boolean
-  hideTutorials?: boolean
 }
 
 export default function MainLayout({
