@@ -10,11 +10,19 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
+    console.log('DEBUG: Attempting to query users table...')
     const userCount = await db.select().from(users)
+    console.log('DEBUG: Query successful, user count:', userCount.length)
     const needsSetup = userCount.length === 0
 
     return NextResponse.json({ needsSetup })
-  } catch (error) {
+  } catch (error: any) {
+    console.error('DEBUG: Database error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      rawError: error
+    })
     logger.error('Failed to check setup status', { error })
     return NextResponse.json(
       { error: 'Failed to check setup status' },

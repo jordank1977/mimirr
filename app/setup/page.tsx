@@ -13,7 +13,6 @@ export default function SetupPage() {
     email: '',
     password: '',
     confirmPassword: '',
-    displayName: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -48,7 +47,7 @@ export default function SetupPage() {
           username: formData.username,
           email: formData.email,
           password: formData.password,
-          displayName: formData.displayName || formData.username,
+          displayName: formData.username,
         }),
       })
 
@@ -94,20 +93,6 @@ export default function SetupPage() {
               className="bg-black/50 border-purple-500/30 text-white"
               disabled={loading}
               required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Display Name
-            </label>
-            <Input
-              type="text"
-              value={formData.displayName}
-              onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-              placeholder="Administrator"
-              className="bg-black/50 border-purple-500/30 text-white"
-              disabled={loading}
             />
           </div>
 

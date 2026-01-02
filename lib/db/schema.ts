@@ -10,8 +10,6 @@ export const users = sqliteTable('users', {
   displayName: text('display_name'),
   avatar: text('avatar'),
   role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
-  hideGettingStarted: integer('hide_getting_started', { mode: 'boolean' }).notNull().default(false),
-  hideTutorials: integer('hide_tutorials', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),

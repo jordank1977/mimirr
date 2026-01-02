@@ -18,6 +18,14 @@ export function SetupChecker() {
     async function checkSetup() {
       try {
         const response = await fetch('/api/setup')
+
+        // If API fails, assume setup is needed (fail-safe)
+        if (!response.ok) {
+          console.error('Setup API failed, redirecting to setup')
+          router.push('/setup')
+          return
+        }
+
         const data = await response.json()
 
         if (data.needsSetup) {
@@ -25,6 +33,8 @@ export function SetupChecker() {
         }
       } catch (error) {
         console.error('Failed to check setup status:', error)
+        // On error, redirect to setup as fail-safe
+        router.push('/setup')
       } finally {
         setChecking(false)
       }
