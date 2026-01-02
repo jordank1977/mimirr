@@ -14,11 +14,10 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/config/db.sqlite
-      - JWT_SECRET=${JWT_SECRET:-please-change-this-secret-key}
+      # JWT_SECRET is auto-generated if not set (recommended to set for production)
+      - JWT_SECRET=${JWT_SECRET:-}
       - JWT_EXPIRES_IN=7d
-      - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME:-admin}
-      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-changeme}
-      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@localhost}
+      # Optional: Hardcover API token for higher rate limits
       - HARDCOVER_API_TOKEN=${HARDCOVER_API_TOKEN:-}
     restart: unless-stopped
     healthcheck:

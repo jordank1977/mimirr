@@ -23,8 +23,6 @@ docker run -d \
   --name mimirr \
   -p 3000:3000 \
   -v mimirr-data:/app/config \
-  -e JWT_SECRET=$(openssl rand -base64 32) \
-  -e DEFAULT_ADMIN_PASSWORD=changeme \
   ghcr.io/jordank1977/mimirr:latest
 
 # Or use docker-compose
@@ -32,9 +30,11 @@ curl -o docker-compose.yml https://raw.githubusercontent.com/jordank1977/mimirr/
 docker-compose up -d
 ```
 
-Access at **http://localhost:3000** and login with:
-- Username: `admin`
-- Password: `changeme` (⚠️ Change immediately!)
+**First-time setup:**
+1. Access **http://localhost:3000**
+2. You'll be greeted by the setup wizard
+3. Create your administrator account
+4. Start discovering books!
 
 ### From Source
 
@@ -49,20 +49,19 @@ npm run dev
 
 ## ⚙️ Configuration
 
-### Required Environment Variables
+### Environment Variables
+
+All environment variables are **optional**. Mimirr works out of the box!
 
 ```env
+# JWT Secret (auto-generated if not set, but sessions won't persist across restarts)
 JWT_SECRET=your-secret-key-here         # Generate with: openssl rand -base64 32
-DEFAULT_ADMIN_PASSWORD=changeme         # Initial admin password
+
+# API Tokens
+HARDCOVER_API_TOKEN=your-token          # For higher API rate limits (optional)
 ```
 
-### Optional Variables
-
-```env
-DEFAULT_ADMIN_USERNAME=admin            # Admin username (default: admin)
-DEFAULT_ADMIN_EMAIL=admin@localhost     # Admin email
-HARDCOVER_API_TOKEN=your-token         # For higher API rate limits
-```
+> **Note:** On first launch, you'll use the setup wizard to create your admin account. No environment variables needed!
 
 ### Bookshelf Setup
 

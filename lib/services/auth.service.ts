@@ -117,30 +117,4 @@ export class AuthService {
     return result[0] || null
   }
 
-  /**
-   * Create default admin user if no users exist
-   */
-  static async createDefaultAdmin(): Promise<void> {
-    const userCount = await db.select().from(users)
-
-    if (userCount.length === 0) {
-      const username = process.env.DEFAULT_ADMIN_USERNAME || 'admin'
-      const password = process.env.DEFAULT_ADMIN_PASSWORD || 'changeme'
-      const email = process.env.DEFAULT_ADMIN_EMAIL || 'admin@localhost'
-
-      const passwordHash = await hashPassword(password)
-
-      await db.insert(users).values({
-        username,
-        email,
-        passwordHash,
-        displayName: 'Administrator',
-        role: 'admin',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-
-      logger.info('Default admin user created', { username })
-    }
-  }
 }

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { SetupChecker } from '@/components/setup-checker'
 import './globals.css'
 
 export const viewport: Viewport = {
@@ -39,7 +40,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <SetupChecker />
+        {children}
+      </body>
     </html>
   )
 }
