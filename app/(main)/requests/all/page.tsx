@@ -21,6 +21,7 @@ export default function AllRequestsPage() {
     show: false,
     id: null,
   })
+  const [approvingId, setApprovingId] = useState<number | null>(null)
 
   useEffect(() => {
     fetchRequests()
@@ -63,6 +64,7 @@ export default function AllRequestsPage() {
   }
 
   async function handleApprove(id: number) {
+    setApprovingId(id)
     try {
       const response = await fetch(`/api/requests/${id}/approve`, {
         method: 'POST',
@@ -75,6 +77,8 @@ export default function AllRequestsPage() {
       await fetchRequests()
     } catch (error) {
       console.error('Failed to approve request:', error)
+    } finally {
+      setApprovingId(null)
     }
   }
 
@@ -314,13 +318,15 @@ export default function AllRequestsPage() {
                           variant="default"
                           size="sm"
                           onClick={() => handleApprove(request.id)}
+                          disabled={approvingId === request.id}
                         >
-                          Approve
+                          {approvingId === request.id ? 'Approving...' : 'Approve'}
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleDecline(request.id)}
+                          disabled={approvingId === request.id}
                         >
                           Decline
                         </Button>

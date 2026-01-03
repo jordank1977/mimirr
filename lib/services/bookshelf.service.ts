@@ -430,19 +430,51 @@ export class BookshelfService {
         body: JSON.stringify(authorToAdd),
       })
 
+      let data: any
+
       if (!response.ok) {
         const errorText = await response.text()
-        logger.error('Failed to add author to Bookshelf', {
-          status: response.status,
-          error: errorText,
-        })
-        return {
-          success: false,
-          error: `Failed to add author: ${response.statusText}`,
-        }
-      }
 
-      const data = await response.json()
+        // Check if author already exists
+        if (response.status === 400 && errorText.includes('AuthorExistsValidator')) {
+          logger.info('Author already exists in Bookshelf, looking up existing author', {
+            foreignAuthorId: authorMetadata.foreignAuthorId,
+          })
+
+          // Look up the existing author by foreignAuthorId
+          const existingAuthors = await this.lookupAuthor(config, authorMetadata.authorName)
+          const existingAuthor = existingAuthors.find(
+            (a: any) => a.foreignAuthorId === authorMetadata.foreignAuthorId
+          )
+
+          if (existingAuthor) {
+            data = existingAuthor
+            logger.info('Found existing author in Bookshelf', {
+              authorId: data.id,
+              authorName: authorMetadata.authorName,
+            })
+          } else {
+            logger.error('Author exists but could not be found in lookup', {
+              authorName: authorMetadata.authorName,
+            })
+            return {
+              success: false,
+              error: 'Author exists but could not be found',
+            }
+          }
+        } else {
+          logger.error('Failed to add author to Bookshelf', {
+            status: response.status,
+            error: errorText,
+          })
+          return {
+            success: false,
+            error: `Failed to add author: ${response.statusText}`,
+          }
+        }
+      } else {
+        data = await response.json()
+      }
 
       logger.info('Author added to Bookshelf successfully', {
         authorId: data.id,
