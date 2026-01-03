@@ -367,14 +367,60 @@ export class BookshelfService {
       }
 
       const bookResults = await bookResponse.json()
-      const bookMatch = bookResults.find(
-        (book: any) =>
-          book.title.toLowerCase() === bookData.title.toLowerCase() ||
-          book.title.toLowerCase().includes(bookData.title.toLowerCase())
-      )
+
+      // Helper function to normalize titles for matching
+      const normalizeTitle = (title: string): string => {
+        return title
+          .toLowerCase()
+          .split(':')[0] // Remove subtitle (text after colon)
+          .trim()
+          .replace(/[^\w\s]/g, '') // Remove special characters
+          .replace(/\s+/g, ' ') // Normalize whitespace
+      }
+
+      // Try multiple matching strategies
+      const searchTitle = bookData.title
+      const normalizedSearch = normalizeTitle(searchTitle)
+
+      const bookMatch = bookResults.find((book: any) => {
+        const bookTitle = book.title
+        const normalizedBook = normalizeTitle(bookTitle)
+
+        // Strategy 1: Exact match (case insensitive)
+        if (bookTitle.toLowerCase() === searchTitle.toLowerCase()) {
+          return true
+        }
+
+        // Strategy 2: Exact match on normalized titles (without subtitles)
+        if (normalizedBook === normalizedSearch) {
+          return true
+        }
+
+        // Strategy 3: Either title contains the other (bidirectional)
+        if (
+          bookTitle.toLowerCase().includes(searchTitle.toLowerCase()) ||
+          searchTitle.toLowerCase().includes(bookTitle.toLowerCase())
+        ) {
+          return true
+        }
+
+        // Strategy 4: Normalized titles contain each other
+        if (
+          normalizedBook.includes(normalizedSearch) ||
+          normalizedSearch.includes(normalizedBook)
+        ) {
+          return true
+        }
+
+        return false
+      })
 
       if (!bookMatch) {
-        logger.error('Book not found', { title: bookData.title })
+        logger.error('Book not found', {
+          title: bookData.title,
+          normalizedTitle: normalizedSearch,
+          searchedTitles: bookResults.map((b: any) => b.title).slice(0, 5)
+        })
         return {
           success: false,
           error: 'Book not found in metadata',
