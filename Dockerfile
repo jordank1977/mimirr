@@ -45,6 +45,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/lib/db/migrations ./lib/db/migrations
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+COPY --from=builder /app/node_modules ./node_modules
+
+RUN chmod +x ./scripts/docker-entrypoint.sh
 
 USER nextjs
 
@@ -53,5 +58,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Run database migrations and start the server
-CMD ["node", "server.js"]
+# Run migrations and start server
+CMD ["./scripts/docker-entrypoint.sh"]
