@@ -47,7 +47,7 @@ RUN mkdir -p /app/config && chown nextjs:nodejs /app/config
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/lib/db/migrations ./lib/db/migrations
+COPY --from=builder /app/lib/db ./lib/db
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY --from=builder /app/node_modules ./node_modules
