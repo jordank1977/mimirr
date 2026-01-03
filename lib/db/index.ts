@@ -3,27 +3,31 @@ import { createClient } from '@libsql/client'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import * as schema from './schema'
 
-// Use relative path for local development
-const databaseUrl = process.env.DATABASE_URL || 'file:./config/db.sqlite'
+// Cache the database instance
+let _db: LibSQLDatabase<typeof schema> | null = null
 
-// Detect if we're in Next.js build mode (no runtime available)
-const isBuildTime = typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build'
+// Lazy initialization function - called on first access
+function getDatabase(): LibSQLDatabase<typeof schema> {
+  if (!_db) {
+    // Read DATABASE_URL at RUNTIME, not at module load
+    const databaseUrl = process.env.DATABASE_URL || 'file:./config/db.sqlite'
 
-// Create database connection (skip during build)
-let db: LibSQLDatabase<typeof schema>
+    const client = createClient({
+      url: databaseUrl,
+    })
+    _db = drizzle(client, { schema })
 
-if (isBuildTime) {
-  // During build, create a mock database object that won't be used
-  db = {} as LibSQLDatabase<typeof schema>
-} else {
-  // At runtime, create actual database connection
-  const client = createClient({
-    url: databaseUrl,
-  })
-  db = drizzle(client, { schema })
+    console.log('[DB] Database connection initialized:', databaseUrl)
+  }
+  return _db
 }
 
-export { db }
+// Export a Proxy that lazily initializes on first access
+export const db = new Proxy({} as LibSQLDatabase<typeof schema>, {
+  get(_target, prop) {
+    return (getDatabase() as any)[prop]
+  },
+})
 
 // Export schema for use in application
 export * from './schema'
