@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   notify_request_available INTEGER DEFAULT 1 NOT NULL,
   notify_request_submitted INTEGER DEFAULT 1 NOT NULL,
   notify_bookshelf_error INTEGER DEFAULT 1 NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+  created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
+  updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
 );
 
 -- Insert default settings row (only one row should ever exist)
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   message TEXT NOT NULL,
   link TEXT, -- Optional link to relevant page (e.g., /requests)
   is_read INTEGER DEFAULT 0 NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

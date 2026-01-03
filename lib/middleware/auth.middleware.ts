@@ -75,7 +75,7 @@ export function handleAuthError(error: unknown): NextResponse {
 export function setAuthCookie(response: NextResponse, token: string): void {
   response.cookies.set('auth_token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' && !process.env.DISABLE_HTTPS_COOKIES,
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 7, // 7 days
     path: '/',

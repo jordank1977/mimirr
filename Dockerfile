@@ -34,6 +34,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Install gosu for user switching in entrypoint
+RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
@@ -51,12 +54,13 @@ COPY --from=builder /app/node_modules ./node_modules
 
 RUN chmod +x ./scripts/docker-entrypoint.sh
 
-USER nextjs
+# Don't switch to nextjs user yet - entrypoint needs root to fix permissions
+# USER nextjs will be done after permissions are fixed
 
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Run migrations and start server
+# Run migrations and start server (entrypoint runs as root, then switches user)
 CMD ["./scripts/docker-entrypoint.sh"]
