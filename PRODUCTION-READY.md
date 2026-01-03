@@ -51,18 +51,14 @@
 ## Quick Deploy Commands
 
 ```bash
-# 1. Prepare environment
-cp .env.example .env
-nano .env  # Edit JWT_SECRET and admin credentials
-
-# 2. Deploy
+# 1. Deploy (zero configuration required!)
 docker-compose up -d
 
-# 3. Verify
+# 2. Verify
 docker-compose logs -f
 curl http://localhost:3000/api/health
 
-# 4. Access
+# 3. Access and complete setup wizard
 http://localhost:3000
 ```
 
@@ -75,32 +71,19 @@ http://localhost:3000
 ### Volumes
 - `mimirr-data:/app/config` - SQLite database and configuration
 
-### Environment Variables (defaults)
+### Environment Variables
 ```env
 NODE_ENV=production
 DATABASE_URL=file:/app/config/db.sqlite
-JWT_EXPIRES_IN=7d
 PORT=3000
-DEFAULT_ADMIN_USERNAME=admin
-DEFAULT_ADMIN_PASSWORD=changeme  # ⚠️ CHANGE THIS!
-DEFAULT_ADMIN_EMAIL=admin@localhost
 ```
 
-## Critical Pre-Deployment Steps
+**Note:** JWT_SECRET auto-generates. Optionally set to persist sessions across container restarts.
 
-### 1. Generate Secure JWT Secret
-```bash
-openssl rand -base64 32
-# Or
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
+## Post-Deployment
 
-### 2. Update .env File
-```env
-JWT_SECRET=<YOUR_32+_CHARACTER_SECRET>
-DEFAULT_ADMIN_PASSWORD=<STRONG_PASSWORD>
-DEFAULT_ADMIN_EMAIL=<YOUR_EMAIL>
-```
+### 1. Complete Setup Wizard
+On first access at http://localhost:3000, create your administrator account via the setup wizard.
 
 ### 3. Configure Reverse Proxy
 - Set up Nginx/Traefik/Caddy

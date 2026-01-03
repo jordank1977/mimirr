@@ -49,19 +49,7 @@ npm run dev
 
 ## ⚙️ Configuration
 
-### Environment Variables
-
-All environment variables are **optional**. Mimirr works out of the box!
-
-```env
-# JWT Secret (auto-generated if not set, but sessions won't persist across restarts)
-JWT_SECRET=your-secret-key-here         # Generate with: openssl rand -base64 32
-
-# API Tokens
-HARDCOVER_API_TOKEN=your-token          # For higher API rate limits (optional)
-```
-
-> **Note:** On first launch, you'll use the setup wizard to create your admin account. No environment variables needed!
+> **Zero Configuration Required!** Mimirr works out of the box. On first launch, you'll use the setup wizard to create your admin account.
 
 ### Bookshelf Setup
 

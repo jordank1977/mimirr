@@ -14,11 +14,8 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/config/db.sqlite
-      # JWT_SECRET is auto-generated if not set (recommended to set for production)
-      - JWT_SECRET=${JWT_SECRET:-}
-      - JWT_EXPIRES_IN=7d
-      # Optional: Hardcover API token for higher rate limits
-      - HARDCOVER_API_TOKEN=${HARDCOVER_API_TOKEN:-}
+      # JWT_SECRET auto-generated - optionally set to persist sessions across restarts
+      # - JWT_SECRET=${JWT_SECRET:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]

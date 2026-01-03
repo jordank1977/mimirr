@@ -25,30 +25,13 @@ cp .env.example .env
 nano .env
 ```
 
-### 2. Configure Environment Variables
+### 2. Optional Configuration
 
-**CRITICAL - Change these before deploying:**
+**All configuration is optional!** Mimirr uses sensible defaults.
 
+If you want sessions to persist across container restarts, optionally set:
 ```env
-# SECURITY: Generate a strong secret key (32+ characters)
-JWT_SECRET=your-very-long-random-secret-key-change-this
-
-# Default admin credentials (change after first login!)
-DEFAULT_ADMIN_USERNAME=admin
-DEFAULT_ADMIN_PASSWORD=ChangeThisStrongPassword123!
-DEFAULT_ADMIN_EMAIL=admin@yourdomain.com
-
-# Optional: Hardcover API token for higher rate limits
-HARDCOVER_API_TOKEN=your-hardcover-token
-```
-
-**Generate a secure JWT_SECRET:**
-```bash
-# Linux/Mac
-openssl rand -base64 32
-
-# Or use Node.js
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+JWT_SECRET=your-secret-key  # Generate with: openssl rand -base64 32
 ```
 
 ### 3. Deploy
@@ -69,9 +52,8 @@ The application will be available at `http://localhost:3000`
 ### 4. First-Time Setup
 
 1. Navigate to `http://localhost:3000`
-2. Login with your admin credentials
-3. **IMMEDIATELY change the admin password** in Settings
-4. Configure Bookshelf integration in Settings → Bookshelf
+2. Complete the setup wizard to create your administrator account
+3. Configure Bookshelf integration in Settings → Bookshelf
 
 ## Manual Docker Deployment
 
@@ -88,13 +70,11 @@ docker run -d \
   --name mimirr \
   -p 3000:3000 \
   -v mimirr-data:/app/config \
-  -e JWT_SECRET='your-secret-key' \
-  -e DEFAULT_ADMIN_USERNAME='admin' \
-  -e DEFAULT_ADMIN_PASSWORD='ChangeMe123!' \
-  -e DEFAULT_ADMIN_EMAIL='admin@localhost' \
   --restart unless-stopped \
   mimirr:latest
 ```
+
+**Note:** No environment variables required! Use the setup wizard on first access.
 
 ### Create Volume (if not auto-created)
 
