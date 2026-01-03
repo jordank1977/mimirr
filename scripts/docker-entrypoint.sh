@@ -5,10 +5,10 @@ set -e
 echo "Fixing config directory permissions..."
 chown -R nextjs:nodejs /app/config
 
-# Switch to nextjs user and run migrations + server
-echo "Running database migrations as nextjs user..."
-gosu nextjs npx drizzle-kit migrate || {
-  echo "Warning: Migrations failed, but continuing startup..."
+# Switch to nextjs user and sync database schema
+echo "Syncing database schema as nextjs user..."
+gosu nextjs npx drizzle-kit push --force || {
+  echo "Warning: Schema push failed, but continuing startup..."
 }
 
 echo "Starting application as nextjs user..."
