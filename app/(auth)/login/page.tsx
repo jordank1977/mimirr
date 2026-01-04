@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -55,9 +56,18 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 px-6 sm:px-8">
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-center">
-            📚 Mimirr
-          </CardTitle>
+          <div className="flex items-center justify-center gap-3">
+            <Image
+              src="/icon-192.png"
+              alt="Mimirr"
+              width={48}
+              height={48}
+              className="rounded-lg"
+            />
+            <CardTitle className="text-2xl sm:text-3xl font-bold">
+              Mimirr
+            </CardTitle>
+          </div>
           <CardDescription className="text-center">
             Sign in to your account
           </CardDescription>
