@@ -454,10 +454,10 @@ export class BookshelfService {
         monitored: true,
         rootFolderPath: rootFolderPath,
         addOptions: {
-          monitor: 'missing', // Monitor missing books
+          monitor: 'none', // Don't auto-monitor new books - only monitor books in booksToMonitor
           searchForMissingBooks: true,
           monitored: true,
-          booksToMonitor: [bookMatch.foreignBookId], // Only monitor this book
+          booksToMonitor: [bookMatch.foreignBookId], // Only monitor this specific book
         },
       }
 
