@@ -8,6 +8,7 @@ A self-hosted book discovery and request management system. Mimirr helps you dis
 
 - 📖 **Book Discovery** - Search and browse thousands of books via Bookinfo.pro
 - 🎯 **Smart Requests** - Request books with quality profile preferences
+- 📚 **Only This Book** - Monitor specific books without tracking an author's entire backlog
 - 👥 **Multi-User** - Role-based access (Admin/User) with approval workflow
 - 🔔 **Notifications** - Discord webhooks for request updates
 - 🎨 **Modern UI** - Dark theme inspired by Hardcover, fully responsive
@@ -43,7 +44,7 @@ git clone https://github.com/jordank1977/mimirr.git
 cd mimirr
 npm install
 cp .env.example .env.local
-npm run db:migrate
+npx ts-node --project scripts/tsconfig.json scripts/migrate.ts
 npm run dev
 ```
 
@@ -77,7 +78,7 @@ npm run dev
 
 ## 🏗️ Technology Stack
 
-- **Framework:** Next.js 15 + TypeScript
+- **Framework:** Next.js 15 + React 19 + TypeScript
 - **Database:** SQLite with Drizzle ORM
 - **Styling:** Tailwind CSS
 - **Auth:** JWT with HTTP-only cookies
@@ -103,7 +104,7 @@ npm install
 cp .env.example .env.local
 
 # Run migrations
-npm run db:migrate
+npx ts-node --project scripts/tsconfig.json scripts/migrate.ts
 
 # Start dev server
 npm run dev
@@ -113,27 +114,9 @@ npm run db:studio    # Open Drizzle Studio
 npm run db:generate  # Generate migrations
 ```
 
-## 🐳 Docker Development (Recommended)
-
-For a consistent development environment, use Docker:
-
-```bash
-# Build and start the development container
-docker-compose -f docker-compose.dev.yml up
-
-# Stop the container
-docker-compose -f docker-compose.dev.yml down
-
-# Rebuild after dependency changes
-docker-compose -f docker-compose.dev.yml up --build
-```
-
-See [DOCKER-DEV.md](DOCKER-DEV.md) for full development workflow and troubleshooting.
 
 ## 📝 Documentation
 
-- [**DEPLOYMENT.md**](DEPLOYMENT.md) - Production deployment guide with reverse proxy examples
-- [**PRODUCTION-READY.md**](PRODUCTION-READY.md) - Production checklist and architecture
 - [**.env.example**](.env.example) - Environment variables reference
 
 ## 🔒 Security
@@ -168,7 +151,3 @@ Contributions welcome! Please:
 
 - **Issues:** [GitHub Issues](https://github.com/jordank1977/mimirr/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/jordank1977/mimirr/discussions)
-
----
-
-**Built with ❤️ for book lovers**
