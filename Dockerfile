@@ -57,9 +57,9 @@ RUN chmod +x ./scripts/docker-entrypoint.sh
 # Don't switch to nextjs user yet - entrypoint needs root to fix permissions
 # USER nextjs will be done after permissions are fixed
 
-EXPOSE 3000
+EXPOSE 8788
 
-ENV PORT=3000
+ENV PORT=8788
 ENV HOSTNAME="0.0.0.0"
 
 # Run migrations and start server (entrypoint runs as root, then switches user)

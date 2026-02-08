@@ -35,7 +35,7 @@
 │  ┌────────────────────────────────────┐  │
 │  │      Next.js 15 (Standalone)       │  │
 │  └────────────────────────────────────┘  │
-│  Port: 3000                              │
+│  Port: 8788                              │
 └─────────────────┬───────────────────────┘
                   │
 ┌─────────────────▼───────────────────────┐
@@ -56,17 +56,17 @@ docker-compose up -d
 
 # 2. Verify
 docker-compose logs -f
-curl http://localhost:3000/api/health
+curl http://localhost:8788/api/health
 
 # 3. Access and complete setup wizard
-http://localhost:3000
+http://localhost:8788
 ```
 
 ## Default Configuration
 
 ### Ports
-- Application: 3000 (HTTP)
-- Health Check: 3000/api/health
+- Application: 8788 (HTTP)
+- Health Check: 8788/api/health
 
 ### Volumes
 - `mimirr-data:/app/config` - SQLite database and configuration
@@ -75,7 +75,7 @@ http://localhost:3000
 ```env
 NODE_ENV=production
 DATABASE_URL=file:/app/config/db.sqlite
-PORT=3000
+PORT=8788
 ```
 
 **Note:** JWT_SECRET auto-generates. Optionally set to persist sessions across container restarts.
@@ -83,7 +83,7 @@ PORT=3000
 ## Post-Deployment
 
 ### 1. Complete Setup Wizard
-On first access at http://localhost:3000, create your administrator account via the setup wizard.
+On first access at http://localhost:8788, create your administrator account via the setup wizard.
 
 ### 3. Configure Reverse Proxy
 - Set up Nginx/Traefik/Caddy
@@ -112,7 +112,7 @@ On first access at http://localhost:3000, create your administrator account via 
 ### Docker Compose Health Check
 ```yaml
 healthcheck:
-  test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+  test: ["CMD", "node", "-e", "require('http').get('http://localhost:8788/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
   interval: 30s
   timeout: 10s
   retries: 3
@@ -121,7 +121,7 @@ healthcheck:
 
 ### HTTP Health Check
 ```bash
-curl http://localhost:3000/api/health
+curl http://localhost:8788/api/health
 ```
 
 Expected response:

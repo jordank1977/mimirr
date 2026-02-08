@@ -44,14 +44,14 @@ docker-compose up -d
 docker-compose logs -f
 
 # Check health
-curl http://localhost:3000/api/health
+curl http://localhost:8788/api/health
 ```
 
-The application will be available at `http://localhost:3000`
+The application will be available at `http://localhost:8788`
 
 ### 4. First-Time Setup
 
-1. Navigate to `http://localhost:3000`
+1. Navigate to `http://localhost:8788`
 2. Complete the setup wizard to create your administrator account
 3. Configure Bookshelf integration in Settings → Bookshelf
 
@@ -68,7 +68,7 @@ docker build -t mimirr:latest .
 ```bash
 docker run -d \
   --name mimirr \
-  -p 3000:3000 \
+  -p 8788:8788 \
   -v mimirr-data:/app/config \
   --restart unless-stopped \
   mimirr:latest
@@ -109,7 +109,7 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:8788;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -142,7 +142,7 @@ services:
       - "traefik.http.routers.mimirr.rule=Host(`mimirr.yourdomain.com`)"
       - "traefik.http.routers.mimirr.entrypoints=websecure"
       - "traefik.http.routers.mimirr.tls.certresolver=letsencrypt"
-      - "traefik.http.services.mimirr.loadbalancer.server.port=3000"
+      - "traefik.http.services.mimirr.loadbalancer.server.port=8788"
     networks:
       - traefik
     restart: unless-stopped
@@ -159,7 +159,7 @@ networks:
 
 ```
 mimirr.yourdomain.com {
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:8788
 }
 ```
 
@@ -237,7 +237,7 @@ docker-compose up -d
 
 # Verify health
 docker-compose logs -f
-curl http://localhost:3000/api/health
+curl http://localhost:8788/api/health
 ```
 
 ### Rollback
@@ -274,7 +274,7 @@ docker-compose logs -f mimirr
 
 ```bash
 # HTTP health check
-curl http://localhost:3000/api/health
+curl http://localhost:8788/api/health
 
 # Container health
 docker inspect --format='{{.State.Health.Status}}' mimirr
@@ -299,8 +299,8 @@ docker system df
 docker-compose logs
 
 # Common issues:
-# 1. Port 3000 already in use
-sudo lsof -i :3000
+# 1. Port 8788 already in use
+sudo lsof -i :8788
 # Kill the process or change port in docker-compose.yml
 
 # 2. Permission issues with volume
@@ -348,7 +348,7 @@ deploy:
 2. **Change Default Credentials**: Immediately after first login
 3. **Use HTTPS**: Always use reverse proxy with SSL/TLS
 4. **Regular Updates**: Keep Docker and application updated
-5. **Firewall**: Only expose port 3000 to reverse proxy
+5. **Firewall**: Only expose port 8788 to reverse proxy
 6. **Backups**: Automate daily database backups
 7. **Environment Files**: Never commit `.env` to git
 8. **User Permissions**: Run as non-root (already configured)
@@ -374,6 +374,6 @@ deploy:
 
 For issues and questions:
 - Check logs: `docker-compose logs -f`
-- Health endpoint: `http://localhost:3000/api/health`
+- Health endpoint: `http://localhost:8788/api/health`
 - Database location: Docker volume `mimirr-data`
 - Configuration: `.env` file and docker-compose.yml

@@ -70,6 +70,7 @@
   - Fixed "Failed to get books by IDs" error by adding individual error handling in `BookService`.
   - Fixed logger swallowing Error details.
   - Fixed `local_dev_workflow.md` PowerShell compatibility issues.
+- **Repository**: Hosted at `https://github.com/jordank1977/mimirr` (Fresh push as of 2026-02-07).
 
 ## 5. CHANGELOG
 
@@ -89,6 +90,7 @@ Recent database migrations (`lib/db/migrations`):
 
 **Environment**
 - You are executing all commands on PowerShell in Windows 10.
+- **Repository**: `https://github.com/jordank1977/mimirr`
 
 **Commands:**
 - `npm run dev`: Start development server.
@@ -102,6 +104,11 @@ Recent database migrations (`lib/db/migrations`):
 **Environment Variables**:
 - `DATABASE_URL`: Path to SQLite database (e.g., `file:local.db`).
 - `JWT_SECRET`: Secret for signing tokens.
+
+## SESSION CHANGELOG (2026-02-07 - 9:48 PM)
+- Reset local git repository to remove all history containing sensitive user information.
+- Initialized fresh git repository and configured user as `jordank1977 <jordank1977@proton.me>`.
+- Pushed initial commit to new remote `https://github.com/jordank1977/mimirr`.
 
 ## SESSION CHANGELOG (2026-02-07 - 9:28 PM)
 - Fixed `Failed to get books by IDs` error in `BookService` by implementing resilient bulk fetching.

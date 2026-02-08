@@ -21,7 +21,7 @@ A self-hosted book discovery and request management system. Mimirr helps you dis
 # Pull from GitHub Container Registry
 docker run -d \
   --name mimirr \
-  -p 3000:3000 \
+  -p 8788:8788 \
   -v mimirr-data:/app/config \
   ghcr.io/jordank1977/mimirr:latest
 
@@ -31,7 +31,7 @@ docker-compose up -d
 ```
 
 **First-time setup:**
-1. Access **http://localhost:3000**
+1. Access **http://localhost:8788**
 2. You'll be greeted by the setup wizard
 3. Create your administrator account
 4. Start discovering books!
