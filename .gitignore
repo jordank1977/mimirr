@@ -42,3 +42,8 @@ next-env.d.ts
 /config/db.sqlite
 /config/db.sqlite-shm
 /config/db.sqlite-wal
+
+# cline
+.cline/
+.cline-dev/
+.clinerules/
