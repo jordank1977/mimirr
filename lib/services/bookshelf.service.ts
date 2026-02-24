@@ -374,14 +374,16 @@ export class BookshelfService {
 
       let bookResults = await bookResponse.json()
 
-      // Fallback: If ISBN search returned no results, try searching by title
+      // Fallback: If ISBN search returned no results, try searching by title + author
       if (bookResults.length === 0 && bookData.isbn) {
-        logger.info('Book not found by ISBN, falling back to title search', {
+        logger.info('Book not found by ISBN, falling back to title + author search', {
           isbn: bookData.isbn,
-          title: bookData.title
+          title: bookData.title,
+          author: bookData.author
         })
 
-        const fallbackUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(bookData.title)}`
+        const fallbackQuery = `${bookData.title} ${bookData.author}`
+        const fallbackUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(fallbackQuery)}`
         const fallbackResponse = await fetch(fallbackUrl, {
           headers: {
             'X-Api-Key': config.apiKey,
@@ -412,10 +414,22 @@ export class BookshelfService {
       // Try multiple matching strategies
       const searchTitle = bookData.title
       const normalizedSearch = normalizeTitle(searchTitle)
+      const requestedAuthor = bookData.author.toLowerCase().trim()
 
       const bookMatch = bookResults.find((book: any) => {
         const bookTitle = book.title
         const normalizedBook = normalizeTitle(bookTitle)
+        
+        // CRITICAL: Ensure the author matches too!
+        // Bookshelf/Readarr returns author info in author.authorName or authorName
+        const resultAuthor = (book.author?.authorName || book.authorName || '').toLowerCase().trim()
+        
+        const authorMatches = resultAuthor.includes(requestedAuthor) || 
+                             requestedAuthor.includes(resultAuthor)
+
+        if (!authorMatches) {
+          return false
+        }
 
         // Strategy 1: Exact match (case insensitive)
         if (bookTitle.toLowerCase() === searchTitle.toLowerCase()) {
