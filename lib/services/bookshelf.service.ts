@@ -325,7 +325,7 @@ export class BookshelfService {
       monitored?: boolean
       qualityProfileId: number
     }
-  ): Promise<{ success: boolean; bookshelfId?: number; error?: string }> {
+  ): Promise<{ success: boolean; bookshelfId?: number; foreignBookId?: string; error?: string }> {
     try {
       // Step 1: Lookup the AUTHOR to get foreignAuthorId
       const authorResults = await this.lookupAuthor(config, bookData.author)
@@ -348,10 +348,16 @@ export class BookshelfService {
 
       // Step 2: Lookup the specific BOOK to get its foreignBookId
       const baseUrl = config.url.replace(/\/$/, '')
-      const bookSearchQuery = bookData.isbn || `${bookData.title}`
+      
+      // Use ISBN if available, otherwise use "Title Author" for much better accuracy and speed
+      const bookSearchQuery = bookData.isbn || `${bookData.title} ${bookData.author}`
       const bookLookupUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(bookSearchQuery)}`
 
-      logger.debug('Looking up book', { url: bookLookupUrl })
+      logger.debug('Looking up book', { 
+        url: bookLookupUrl, 
+        searchTerm: bookSearchQuery,
+        usingIsbn: !!bookData.isbn 
+      })
 
       const bookResponse = await fetch(bookLookupUrl, {
         headers: {
@@ -520,10 +526,58 @@ export class BookshelfService {
 
           if (existingAuthor) {
             data = existingAuthor
-            logger.info('Found existing author in Bookshelf', {
+            logger.info('Found existing author in Bookshelf, ensuring book is monitored', {
               authorId: data.id,
               authorName: authorMetadata.authorName,
+              foreignBookId: bookMatch.foreignBookId,
             })
+
+            // If author exists, we need to make sure the specific book is monitored
+            // First, find the book in the author's books
+            const authorBooksResponse = await fetch(`${baseUrl}/api/v1/book?authorId=${data.id}`, {
+              headers: { 'X-Api-Key': config.apiKey },
+            })
+
+            if (authorBooksResponse.ok) {
+              const authorBooks = await authorBooksResponse.json()
+              const existingBook = authorBooks.find((b: any) => b.foreignBookId === bookMatch.foreignBookId)
+
+              if (existingBook) {
+                if (!existingBook.monitored) {
+                  logger.info('Monitoring existing book for existing author', {
+                    bookId: existingBook.id,
+                    title: existingBook.title,
+                  })
+                  
+                  existingBook.monitored = true
+                  await fetch(`${baseUrl}/api/v1/book`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-Api-Key': config.apiKey,
+                    },
+                    body: JSON.stringify(existingBook),
+                  })
+                }
+              } else {
+                logger.info('Book not found for existing author, triggering refresh', {
+                  authorId: data.id,
+                  authorName: authorMetadata.authorName,
+                })
+                // Trigger refresh if book not found
+                await fetch(`${baseUrl}/api/v1/command`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Api-Key': config.apiKey,
+                  },
+                  body: JSON.stringify({
+                    name: 'RefreshAuthor',
+                    authorId: data.id,
+                  }),
+                })
+              }
+            }
           } else {
             logger.error('Author exists but could not be found in lookup', {
               authorName: authorMetadata.authorName,
@@ -545,6 +599,24 @@ export class BookshelfService {
         }
       } else {
         data = await response.json()
+        
+        // Trigger an explicit refresh for the new author to ensure books are populated
+        logger.info('Triggering refresh for new author', {
+          authorId: data.id,
+          authorName: authorMetadata.authorName,
+        })
+        
+        await fetch(`${baseUrl}/api/v1/command`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Api-Key': config.apiKey,
+          },
+          body: JSON.stringify({
+            name: 'RefreshAuthor',
+            authorId: data.id,
+          }),
+        }).catch(err => logger.error('Failed to trigger refresh for new author', { error: err }))
       }
 
       logger.info('Author added to Bookshelf successfully', {
@@ -556,6 +628,7 @@ export class BookshelfService {
       return {
         success: true,
         bookshelfId: data.id,
+        foreignBookId: bookMatch.foreignBookId,
       }
     } catch (error) {
       logger.error('Failed to add book to Bookshelf', { error })

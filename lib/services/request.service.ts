@@ -157,6 +157,7 @@ export class RequestService {
       notes?: string
       processedBy?: number
       bookshelfId?: number
+      foreignBookId?: string
     }
   ): Promise<Request> {
     try {
@@ -390,10 +391,11 @@ export class RequestService {
           }
 
           // Check status in Bookshelf
+          // Use foreignBookId if available, otherwise fallback to bookId
           const statusResult = await BookshelfService.getAuthorBookStatus(
             bookshelfConfig,
             request.bookshelfId!,
-            request.bookId // foreignBookId is the same as bookId in our system
+            request.foreignBookId || request.bookId
           )
 
           logger.debug('Poll result', {

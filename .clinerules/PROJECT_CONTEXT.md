@@ -108,6 +108,19 @@ Recent database migrations (`lib/db/migrations`):
 - `DATABASE_URL`: Path to SQLite database (e.g., `file:local.db`).
 - `JWT_SECRET`: Secret for signing tokens.
 
+## SESSION CHANGELOG (2026-02-24 - 2:52 PM)
+- Fixed silent failure and extreme latency (200s+) in book approval by optimizing the search query in `BookshelfService.addBook` to use `Title + Author` when ISBN is missing.
+- Fixed monitoring issues where new authors appeared with zero books by adding an explicit `RefreshAuthor` trigger after author addition.
+- Improved monitoring for existing authors by ensuring the specific requested book is monitored or triggering a refresh if it's missing from metadata.
+- Updated `RequestService` and the approval route to store and utilize the specific `foreignBookId` for more accurate status polling.
+- Documented changes and verified local startup.
+
+## SESSION CHANGELOG (2026-02-24 - 11:34 AM)
+- Fixed "Book not found in metadata" error during book approval by implementing an ISBN-to-title fallback mechanism in `BookshelfService.addBook`.
+- Verified the fix with a mock test script simulating ISBN lookup failure.
+- Updated `BookshelfService` documentation in `PROJECT_CONTEXT.md`.
+- Pushed changes to GitHub.
+
 ## SESSION CHANGELOG (2026-02-24 - 11:13 AM)
 - Fixed `TypeError: Cannot read properties of undefined (reading 'discordEnabled')` in `NotificationService.updateSettings` by implementing an upsert pattern.
 - Cleaned up git repository by removing `.cline`, `.cline-dev`, and `.clinerules` from version control.

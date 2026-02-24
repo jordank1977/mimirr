@@ -140,6 +140,7 @@ export async function POST(
       status: 'processing',
       processedBy: user.userId,
       bookshelfId: result.bookshelfId,
+      foreignBookId: result.foreignBookId,
     })
 
     logger.info('Request approved and sent to Bookshelf', {
