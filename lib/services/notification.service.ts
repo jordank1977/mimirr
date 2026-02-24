@@ -61,6 +61,8 @@ export class NotificationService {
     notifyBookshelfError?: boolean
   }) {
     try {
+      const settings = await this.getSettings()
+      
       const updateData: any = {
         updatedAt: new Date(),
       }
@@ -91,6 +93,20 @@ export class NotificationService {
       }
       if (typeof data.notifyBookshelfError === 'boolean') {
         updateData.notifyBookshelfError = data.notifyBookshelfError
+      }
+
+      if (!settings) {
+        // Create settings if they don't exist
+        const result = await db
+          .insert(notificationSettings)
+          .values({
+            id: 1,
+            ...updateData,
+            createdAt: new Date(),
+          })
+          .returning()
+        
+        return result[0]
       }
 
       const result = await db

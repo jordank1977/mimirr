@@ -67,6 +67,7 @@
   - `user_preferences`: User-specific recommendation data.
   - `quality_profile_configs`: Integration settings for Bookshelf quality profiles.
 - **Resolved Issues**:
+  - Updated default application port to 8788 (from 3000) to resolve Dockge defaults conflict.
   - Fixed "Failed to get books by IDs" error by adding individual error handling in `BookService`.
   - Fixed logger swallowing Error details.
   - Fixed `local_dev_workflow.md` PowerShell compatibility issues.
@@ -99,11 +100,21 @@ Recent database migrations (`lib/db/migrations`):
 - `npm run db:studio`: Open Drizzle Studio to inspect the database.
 
 **Ports:**
-- **Web Interface**: 3000 (default)
+- **Web Interface**: 8788 (default)
 
 **Environment Variables**:
 - `DATABASE_URL`: Path to SQLite database (e.g., `file:local.db`).
 - `JWT_SECRET`: Secret for signing tokens.
+
+## SESSION CHANGELOG (2026-02-24 - 10:41 AM)
+- Fixed `TypeError: Cannot read properties of undefined (reading 'discordEnabled')` in `NotificationService.updateSettings`.
+- Implemented automatic creation of notification settings row (ID 1) if it doesn't exist during update.
+- Pushed fix to GitHub.
+
+## SESSION CHANGELOG (2026-02-07 - 11:21 PM)
+- Updated default application port from 3000 to 8788 in `Dockerfile`, `docker-compose.yml`, and documentation files.
+- Verified Docker build configuration and port mappings.
+- Pushed changes to `master` branch.
 
 ## SESSION CHANGELOG (2026-02-07 - 9:48 PM)
 - Reset local git repository to remove all history containing sensitive user information.
