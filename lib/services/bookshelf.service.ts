@@ -366,7 +366,32 @@ export class BookshelfService {
         }
       }
 
-      const bookResults = await bookResponse.json()
+      let bookResults = await bookResponse.json()
+
+      // Fallback: If ISBN search returned no results, try searching by title
+      if (bookResults.length === 0 && bookData.isbn) {
+        logger.info('Book not found by ISBN, falling back to title search', {
+          isbn: bookData.isbn,
+          title: bookData.title
+        })
+
+        const fallbackUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(bookData.title)}`
+        const fallbackResponse = await fetch(fallbackUrl, {
+          headers: {
+            'X-Api-Key': config.apiKey,
+          },
+        })
+
+        if (fallbackResponse.ok) {
+          bookResults = await fallbackResponse.json()
+          logger.debug('Title fallback search results', { count: bookResults.length })
+        } else {
+          logger.warn('Title fallback search failed', {
+            status: fallbackResponse.status,
+            title: bookData.title
+          })
+        }
+      }
 
       // Helper function to normalize titles for matching
       const normalizeTitle = (title: string): string => {
