@@ -738,13 +738,17 @@ export class BookshelfService {
               return { ...e, monitored: false }
             })
           } else {
-            logger.info('No editions found in book lookup results, creating synthetic edition', { 
-              foreignBookId: bookMatch.foreignBookId 
+            // Priority: use the specific edition ID if provided at top level, fallback to book ID
+            const fallbackEditionId = bookMatch.foreignEditionId || bookMatch.ForeignEditionId || bookMatch.foreignBookId;
+            
+            logger.info('No editions list found in book lookup results, creating synthetic edition', { 
+              foreignBookId: bookMatch.foreignBookId,
+              usingEditionId: fallbackEditionId
             })
+            
             // Create a synthetic edition to satisfy Bookshelf's requirement for exactly one monitored edition.
-            // Using foreignBookId as a fallback for ForeignEditionId.
             editionsToPayload = [{
-              foreignEditionId: bookMatch.foreignBookId,
+              foreignEditionId: fallbackEditionId,
               title: bookMatch.title,
               monitored: true
             }]
