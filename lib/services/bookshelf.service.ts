@@ -729,6 +729,7 @@ export class BookshelfService {
             authorId: data.id,
             foreignBookId: bookMatch.foreignBookId,
             monitored: true,
+            editions: [], // Must be an empty list to satisfy Bookshelf's mapper
             addOptions: {
               searchForNewBook: true // Trigger immediate search
             },
