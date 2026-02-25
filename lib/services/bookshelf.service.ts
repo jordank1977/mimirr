@@ -559,11 +559,30 @@ export class BookshelfService {
 
           if (existingAuthor) {
             data = existingAuthor
-            logger.info('Found existing author in Bookshelf, ensuring book is monitored', {
+            logger.info('Found existing author in Bookshelf, ensuring author and book are monitored', {
               authorId: data.id,
               authorName: authorMetadata.authorName,
               foreignBookId: bookMatch.foreignBookId,
             })
+
+            // Ensure author is monitored and has correct quality profile
+            if (!data.monitored || data.qualityProfileId !== bookData.qualityProfileId) {
+              logger.info('Updating existing author monitoring/profile', {
+                authorId: data.id,
+                monitored: true,
+                qualityProfileId: bookData.qualityProfileId
+              })
+              data.monitored = true
+              data.qualityProfileId = bookData.qualityProfileId
+              await fetch(`${baseUrl}/api/v1/author`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Api-Key': config.apiKey,
+                },
+                body: JSON.stringify(data),
+              })
+            }
 
             // If author exists, we need to make sure the specific book is monitored
             // First, find the book in the author's books
@@ -652,11 +671,107 @@ export class BookshelfService {
         }).catch(err => logger.error('Failed to trigger refresh for new author', { error: err }))
       }
 
-      logger.info('Author added to Bookshelf successfully', {
+      logger.info('Author added/verified in Bookshelf successfully', {
         authorId: data.id,
         authorName: authorMetadata.authorName,
         bookTitle: bookData.title,
       })
+
+      // Step 5: Explicitly verify and add the BOOK if missing
+      // This bypasses metadata provider latency/caching issues with author book lists
+      try {
+        logger.debug('Verifying book existence for author', {
+          authorId: data.id,
+          foreignBookId: bookMatch.foreignBookId
+        })
+
+        const authorBooksResponse = await fetch(`${baseUrl}/api/v1/book?authorId=${data.id}`, {
+          headers: { 'X-Api-Key': config.apiKey },
+        })
+
+        let bookFound = false
+        if (authorBooksResponse.ok) {
+          const authorBooks = await authorBooksResponse.json()
+          const existingBook = authorBooks.find((b: any) => b.foreignBookId === bookMatch.foreignBookId)
+          
+          if (existingBook) {
+            bookFound = true
+            logger.info('Book already exists for author, ensuring monitored status', {
+              bookId: existingBook.id,
+              monitored: existingBook.monitored
+            })
+            
+            if (!existingBook.monitored) {
+              existingBook.monitored = true
+              await fetch(`${baseUrl}/api/v1/book`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Api-Key': config.apiKey,
+                },
+                body: JSON.stringify(existingBook),
+              })
+            }
+          }
+        }
+
+        if (!bookFound) {
+          logger.info('Book missing from author library, explicitly adding book', {
+            title: bookMatch.title,
+            foreignBookId: bookMatch.foreignBookId,
+            authorId: data.id
+          })
+
+          // Construct BookResource payload
+          // We use the minimal required fields to trigger a metadata-backed add
+          const bookToAdd = {
+            title: bookMatch.title,
+            authorId: data.id,
+            foreignBookId: bookMatch.foreignBookId,
+            monitored: true,
+            addOptions: {
+              searchForNewBook: true // Trigger immediate search
+            },
+            // Include minimal author info to help Bookshelf's mapper
+            author: {
+              id: data.id,
+              foreignAuthorId: authorMetadata.foreignAuthorId,
+              authorName: authorMetadata.authorName
+            }
+          }
+
+          const addBookResponse = await fetch(`${baseUrl}/api/v1/book`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Api-Key': config.apiKey,
+            },
+            body: JSON.stringify(bookToAdd),
+          })
+
+          if (addBookResponse.ok) {
+            const addedBook = await addBookResponse.json()
+            logger.info('Book explicitly added to Bookshelf', {
+              bookId: addedBook.id,
+              title: addedBook.title
+            })
+          } else {
+            const errorText = await addBookResponse.text()
+            logger.error('Failed to explicitly add book to Bookshelf', {
+              status: addBookResponse.status,
+              error: errorText,
+              foreignBookId: bookMatch.foreignBookId
+            })
+            // We don't return failure here because the author was added, 
+            // and Bookshelf might still find it later via background refresh.
+          }
+        }
+      } catch (bookError) {
+        logger.error('Error during explicit book verification/addition', { 
+          error: bookError,
+          foreignBookId: bookMatch.foreignBookId 
+        })
+      }
 
       return {
         success: true,
