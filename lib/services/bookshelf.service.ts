@@ -340,8 +340,8 @@ export class BookshelfService {
         }
       }
 
-      const authorMetadata = authorResults[0]
-      logger.debug('Author lookup successful', {
+      let authorMetadata = authorResults[0]
+      logger.debug('Initial author lookup successful', {
         authorName: authorMetadata.authorName,
         foreignAuthorId: authorMetadata.foreignAuthorId,
       })
@@ -475,7 +475,26 @@ export class BookshelfService {
       logger.debug('Book lookup successful', {
         title: bookMatch.title,
         foreignBookId: bookMatch.foreignBookId,
+        authorInBookMatch: bookMatch.author?.authorName || bookMatch.authorName,
+        foreignAuthorIdInBookMatch: bookMatch.author?.foreignAuthorId || bookMatch.foreignAuthorId
       })
+
+      // CRITICAL FIX: Use the foreignAuthorId associated with the found book!
+      // This ensures we add the correct author profile that actually contains this book.
+      const bookAuthorId = bookMatch.author?.foreignAuthorId || bookMatch.foreignAuthorId
+      if (bookAuthorId && bookAuthorId !== authorMetadata.foreignAuthorId) {
+        logger.info('Updating author metadata to match book author ID', {
+          oldId: authorMetadata.foreignAuthorId,
+          newId: bookAuthorId,
+          authorName: bookMatch.author?.authorName || bookMatch.authorName || authorMetadata.authorName
+        })
+        
+        authorMetadata = {
+          ...authorMetadata,
+          foreignAuthorId: bookAuthorId,
+          authorName: bookMatch.author?.authorName || bookMatch.authorName || authorMetadata.authorName
+        }
+      }
 
       // Step 3: Get root folder
       const rootFolders = await this.getRootFolders(config)

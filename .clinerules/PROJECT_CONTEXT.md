@@ -111,6 +111,7 @@ Recent database migrations (`lib/db/migrations`):
 ## SESSION CHANGELOG (2026-02-24 - 2:52 PM)
 - Fixed silent failure and extreme latency (200s+) in book approval by optimizing the search query in `BookshelfService.addBook` to use `Title + Author` when ISBN is missing.
 - Fixed a critical bug where books with the same title but different authors were incorrectly matched; implemented strict author verification in book lookup.
+- Fixed an issue where the wrong author profile was added by ensuring the `foreignAuthorId` from the matched book is used for author addition.
 - Fixed monitoring issues where new authors appeared with zero books by adding an explicit `RefreshAuthor` trigger after author addition.
 - Improved monitoring for existing authors by ensuring the specific requested book is monitored or triggering a refresh if it's missing from metadata.
 - Updated `RequestService` and the approval route to store and utilize the specific `foreignBookId` for more accurate status polling.
