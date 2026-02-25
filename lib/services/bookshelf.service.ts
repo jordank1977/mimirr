@@ -722,14 +722,37 @@ export class BookshelfService {
             authorId: data.id
           })
 
+          // Prepare editions list - Bookshelf REQUIRES exactly one monitored edition in the payload
+          // to successfully process AddSkyhookData during addition.
+          const lookupEditions = bookMatch.editions || []
+          let editionsToPayload: any[] = []
+          
+          if (lookupEditions.length > 0) {
+            let monitoredFound = false
+            editionsToPayload = lookupEditions.map((e: any) => {
+              // Monitor the first edition we find, unmonitor others to ensure exactly one match
+              if (!monitoredFound) {
+                monitoredFound = true
+                return { ...e, monitored: true }
+              }
+              return { ...e, monitored: false }
+            })
+          } else {
+            logger.warn('No editions found in book lookup results, addition may fail', { 
+              foreignBookId: bookMatch.foreignBookId 
+            })
+            // Fallback to empty list as last resort, though server will likely throw 500
+            editionsToPayload = []
+          }
+
           // Construct BookResource payload
-          // We use the minimal required fields to trigger a metadata-backed add
+          // We use the metadata-rich object from lookup to trigger a clean addition
           const bookToAdd = {
             title: bookMatch.title,
             authorId: data.id,
             foreignBookId: bookMatch.foreignBookId,
             monitored: true,
-            editions: [], // Must be an empty list to satisfy Bookshelf's mapper
+            editions: editionsToPayload,
             addOptions: {
               searchForNewBook: true // Trigger immediate search
             },
