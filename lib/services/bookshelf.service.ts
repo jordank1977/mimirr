@@ -738,11 +738,16 @@ export class BookshelfService {
               return { ...e, monitored: false }
             })
           } else {
-            logger.warn('No editions found in book lookup results, addition may fail', { 
+            logger.info('No editions found in book lookup results, creating synthetic edition', { 
               foreignBookId: bookMatch.foreignBookId 
             })
-            // Fallback to empty list as last resort, though server will likely throw 500
-            editionsToPayload = []
+            // Create a synthetic edition to satisfy Bookshelf's requirement for exactly one monitored edition.
+            // Using foreignBookId as a fallback for ForeignEditionId.
+            editionsToPayload = [{
+              foreignEditionId: bookMatch.foreignBookId,
+              title: bookMatch.title,
+              monitored: true
+            }]
           }
 
           // Construct BookResource payload
