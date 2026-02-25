@@ -732,11 +732,13 @@ export class BookshelfService {
             addOptions: {
               searchForNewBook: true // Trigger immediate search
             },
-            // Include minimal author info to help Bookshelf's mapper
+            // Include author info to satisfy Bookshelf's validation
             author: {
               id: data.id,
               foreignAuthorId: authorMetadata.foreignAuthorId,
-              authorName: authorMetadata.authorName
+              authorName: authorMetadata.authorName,
+              path: data.path,
+              rootFolderPath: data.rootFolderPath
             }
           }
 
