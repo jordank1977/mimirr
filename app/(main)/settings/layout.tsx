@@ -14,6 +14,7 @@ const tabs: Tab[] = [
   { name: 'Notifications', path: '/settings/notifications', adminOnly: true },
   { name: 'Bookshelf', path: '/settings/bookshelf', adminOnly: true },
   { name: 'Users', path: '/settings/users', adminOnly: true },
+  { name: 'Logs', path: '/settings/logs', adminOnly: true },
 ]
 
 export default function SettingsLayout({
