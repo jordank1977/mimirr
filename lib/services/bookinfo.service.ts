@@ -15,16 +15,20 @@ export class BookinfoService {
    * Search for books
    */
   static async searchBooks(query: string, limit = 20): Promise<Book[]> {
+    const startTime = performance.now()
     try {
+      const searchStartTime = performance.now()
       const response = await fetch(
         `${this.apiUrl}/search?q=${encodeURIComponent(query)}`
       )
+      const searchDuration = (performance.now() - searchStartTime).toFixed(2)
 
       if (!response.ok) {
         throw new Error(`Bookinfo API error: ${response.statusText}`)
       }
 
       const searchResults: BookinfoSearchResult[] = await response.json()
+      logger.info(`[PERF] Bookinfo search completed in ${searchDuration}ms`, { query, resultsCount: searchResults?.length })
 
       if (!searchResults || searchResults.length === 0) {
         return []
@@ -37,6 +41,9 @@ export class BookinfoService {
 
       // Fetch detailed info for all books
       const books = await this.getBulkBooks(bookIds)
+
+      const totalDuration = (performance.now() - startTime).toFixed(2)
+      logger.info(`[PERF] Total search & metadata fetch completed in ${totalDuration}ms`, { query, booksReturned: books.length })
 
       return books
     } catch (error) {
@@ -76,6 +83,7 @@ export class BookinfoService {
    * Get multiple books by IDs (returns parent works)
    */
   static async getBulkBooks(bookIds: number[]): Promise<Book[]> {
+    const startTime = performance.now()
     try {
       logger.debug('Fetching bulk books', { bookIds })
 
@@ -84,12 +92,14 @@ export class BookinfoService {
       const url = `${this.apiUrl}/book/bulk?${queryParams}`
 
       const response = await fetch(url)
+      const duration = (performance.now() - startTime).toFixed(2)
 
       if (!response.ok) {
         throw new Error(`Bookinfo API error: ${response.statusText}`)
       }
 
       const data: BookinfoBulkResponse = await response.json()
+      logger.info(`[PERF] Bookinfo bulk metadata fetch completed in ${duration}ms`, { bookIdsCount: bookIds.length })
 
       logger.debug('Bulk books response', {
         workCount: data.Works?.length,
