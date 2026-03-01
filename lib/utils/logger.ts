@@ -10,13 +10,21 @@ interface LogMessage {
   data?: unknown
 }
 
-const LOG_DIR = path.join(process.cwd(), 'logs')
+// In Docker, /app/config is mounted for persistence, so we put logs there.
+// Fallback to local 'logs' directory if not in Docker or if config doesn't exist.
+const LOG_DIR = process.env.NODE_ENV === 'production' 
+  ? path.join(process.cwd(), 'config', 'logs')
+  : path.join(process.cwd(), 'logs')
 const LOG_FILE = path.join(LOG_DIR, 'mimirr.log')
 
 // Ensure log directory exists (server-side only)
 if (typeof window === 'undefined') {
-  if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true })
+  try {
+    if (!fs.existsSync(LOG_DIR)) {
+      fs.mkdirSync(LOG_DIR, { recursive: true })
+    }
+  } catch (err) {
+    console.error('Failed to create log directory', err)
   }
 }
 

@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
     // Only admins should see the logs
     await requireAdmin(request)
 
-    const logPath = path.join(process.cwd(), 'logs', 'mimirr.log')
+    const logDir = process.env.NODE_ENV === 'production' 
+      ? path.join(process.cwd(), 'config', 'logs')
+      : path.join(process.cwd(), 'logs')
+    const logPath = path.join(logDir, 'mimirr.log')
 
     if (!fs.existsSync(logPath)) {
       return new NextResponse('Log file not found.', {
