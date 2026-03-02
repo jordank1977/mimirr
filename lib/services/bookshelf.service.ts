@@ -546,6 +546,9 @@ export class BookshelfService {
           monitored: true, // This monitors the book specified in booksToMonitor
           booksToMonitor: [bookMatch.foreignBookId], // Only monitor this specific book
         },
+        // Some versions of Readarr use these fields at the top level
+        authorMonitor: 'none',
+        monitorNewItems: 'none',
       }
 
       logger.debug('Adding author to Bookshelf', {

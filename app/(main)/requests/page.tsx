@@ -9,7 +9,7 @@ import type { RequestWithBook } from '@/lib/services/request.service'
 export default function RequestsPage() {
   const [requests, setRequests] = useState<RequestWithBook[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<string>('all')
+  const [filter, setFilter] = useState<string>('pending')
   const [polling, setPolling] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; id: number | null }>({
     show: false,

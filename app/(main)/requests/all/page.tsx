@@ -331,6 +331,11 @@ export default function AllRequestsPage() {
                     </div>
 
                     <div className="mt-2 space-y-1 text-xs text-foreground-muted">
+                      {request.requestedBy && (
+                        <p className="font-medium text-foreground">
+                          Requested by: {request.requestedBy}
+                        </p>
+                      )}
                       <p>
                         Requested:{' '}
                         {new Date(request.requestedAt).toLocaleDateString()}
