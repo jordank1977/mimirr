@@ -39,10 +39,23 @@ export function AuthorCard({ author }: AuthorCardProps) {
         )}
 
         <div className="flex items-center gap-2 text-xs text-foreground-muted">
-          {author.avgRating > 0 && (
+          {author.avgRating !== undefined && author.avgRating !== null && (
             <div className="flex items-center gap-1">
-              <span className="text-yellow-500">★</span>
-              <span>{author.avgRating.toFixed(1)}</span>
+              <div className="flex">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span
+                    key={star}
+                    className={
+                      star <= Math.round(author.avgRating)
+                        ? 'text-yellow-500'
+                        : 'text-border'
+                    }
+                  >
+                    ★
+                  </span>
+                ))}
+              </div>
+              <span className="ml-0.5">{author.avgRating.toFixed(1)}</span>
             </div>
           )}
           {author.bookCount > 0 && (

@@ -79,10 +79,23 @@ export function BookCard({ book }: BookCardProps) {
           <p className="text-xs text-foreground-muted line-clamp-1">
             {book.author}
           </p>
-          {book.rating && (
+          {book.rating !== undefined && book.rating !== null && (
             <div className="flex items-center gap-1 mt-2">
-              <span className="text-yellow-500">★</span>
-              <span className="text-xs text-foreground-muted">
+              <div className="flex">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span
+                    key={star}
+                    className={
+                      star <= Math.round(book.rating!)
+                        ? 'text-yellow-500'
+                        : 'text-border'
+                    }
+                  >
+                    ★
+                  </span>
+                ))}
+              </div>
+              <span className="text-xs text-foreground-muted ml-0.5">
                 {book.rating.toFixed(1)}
               </span>
             </div>

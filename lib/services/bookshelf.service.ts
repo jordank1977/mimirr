@@ -754,15 +754,8 @@ export class BookshelfService {
           let editionsToPayload: any[] = []
           
           if (lookupEditions.length > 0) {
-            let monitoredFound = false
-            editionsToPayload = lookupEditions.map((e: any) => {
-              // Monitor the first edition we find, unmonitor others to ensure exactly one match
-              if (!monitoredFound) {
-                monitoredFound = true
-                return { ...e, monitored: true }
-              }
-              return { ...e, monitored: false }
-            })
+            // Find the best edition (monitor the first one, but keep the list minimal to avoid duplicates/conflicts)
+            editionsToPayload = [{ ...lookupEditions[0], monitored: true }]
           } else {
             // Priority: use the specific edition ID if provided at top level, fallback to book ID
             const fallbackEditionId = bookMatch.foreignEditionId || bookMatch.ForeignEditionId || bookMatch.foreignBookId;
