@@ -343,24 +343,19 @@ export class RequestService {
         apiKey: bookshelfApiKey,
       }
 
-      // Get all processing requests with bookshelfId
-      const processingRequests = await db
+      // Get all processing and approved (unreleased) requests with bookshelfId
+      const requestsToPoll = await db
         .select()
         .from(requests)
         .where(
           and(
-            eq(requests.status, 'processing'),
+            sql`${requests.status} IN ('processing', 'approved')`,
             isNotNull(requests.bookshelfId)
           )
         )
 
-      // For now, poll all processing requests (no rate limiting)
-      // TODO: Re-enable rate limiting after testing
-      const requestsToPoll = processingRequests
-
       logger.info('Found requests to poll', {
-        total: processingRequests.length,
-        toPoll: requestsToPoll.length,
+        total: requestsToPoll.length,
       })
 
       if (requestsToPoll.length === 0) {
@@ -409,13 +404,11 @@ export class RequestService {
           })
 
           // Update request based on status
-          let newStatus: 'processing' | 'available' = 'processing'
           const updateData: Partial<Request> = {
             lastPolledAt: new Date(),
           }
 
           if (statusResult.status === 'available') {
-            newStatus = 'available'
             updateData.status = 'available'
             updateData.completedAt = new Date()
             updated++
@@ -471,8 +464,26 @@ export class RequestService {
               qualityProfileName,
               '/requests'
             )
+          } else if (statusResult.status === 'downloading') {
+            // Advance unreleased (approved) books to processing
+            if (request.status === 'approved') {
+              updateData.status = 'processing'
+              updated++
+
+              details.push({
+                requestId: request.id,
+                bookTitle: book.title,
+                oldStatus: 'approved',
+                newStatus: 'processing',
+              })
+
+              logger.info('Request advanced to processing', {
+                requestId: request.id,
+                bookTitle: book.title,
+              })
+            }
           } else if (statusResult.status === 'error') {
-            // Log error but keep as processing - could be temporary
+            // Log error but keep as processing/approved - could be temporary
             logger.warn('Error checking request status', {
               requestId: request.id,
               error: statusResult.error,
@@ -480,7 +491,7 @@ export class RequestService {
             errors++
           }
 
-          // Update lastPolledAt regardless of status
+          // Update request regardless of status (updates lastPolledAt)
           await db
             .update(requests)
             .set(updateData)

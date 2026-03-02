@@ -86,69 +86,86 @@ export async function POST(request: NextRequest) {
         logger.error('Failed to update user preferences', { error, userId: user.userId })
       }
 
-      // Get book details for notification
-      const book = await BookService.getBookById(validatedData.bookId)
+      // Process notifications in the background
+      const processNotifications = async () => {
+        try {
+          // Get book details for notification
+          const book = await BookService.getBookById(validatedData.bookId)
+          if (!book) return
 
-      // Get requesting user's details for notification
-      const requestingUser = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, user.userId))
-        .limit(1)
+          // Get requesting user's details for notification
+          const requestingUser = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, user.userId))
+            .limit(1)
 
-      const username = requestingUser[0]?.username || 'Unknown User'
+          const username = requestingUser[0]?.username || 'Unknown User'
 
-      // Get quality profile name from Bookshelf
-      let qualityProfileName = 'Unknown'
-      try {
-        // Get Bookshelf settings
-        const urlSetting = await db
-          .select()
-          .from(settings)
-          .where(eq(settings.key, 'bookshelf_url'))
-          .limit(1)
+          // Get quality profile name from Bookshelf
+          let qualityProfileName = 'Unknown'
+          try {
+            // Get Bookshelf settings
+            const urlSetting = await db
+              .select()
+              .from(settings)
+              .where(eq(settings.key, 'bookshelf_url'))
+              .limit(1)
 
-        const apiKeySetting = await db
-          .select()
-          .from(settings)
-          .where(eq(settings.key, 'bookshelf_api_key'))
-          .limit(1)
+            const apiKeySetting = await db
+              .select()
+              .from(settings)
+              .where(eq(settings.key, 'bookshelf_api_key'))
+              .limit(1)
 
-        const bookshelfUrl = urlSetting[0]?.value
-        const bookshelfApiKey = apiKeySetting[0]?.value
+            const bookshelfUrl = urlSetting[0]?.value
+            const bookshelfApiKey = apiKeySetting[0]?.value
 
-        if (bookshelfUrl && bookshelfApiKey) {
-          const profiles = await BookshelfService.getQualityProfiles({
-            url: bookshelfUrl,
-            apiKey: bookshelfApiKey,
+            if (bookshelfUrl && bookshelfApiKey) {
+              const profiles = await BookshelfService.getQualityProfiles({
+                url: bookshelfUrl,
+                apiKey: bookshelfApiKey,
+              })
+              const profile = profiles.find(
+                (p) => p.id === validatedData.qualityProfileId
+              )
+              if (profile) qualityProfileName = profile.name
+            }
+          } catch (error) {
+            logger.error('Failed to fetch quality profile', { error })
+          }
+
+          // Send notification to admins
+          const adminIds = await NotificationService.getAdminUserIds()
+
+          logger.info('Sending notification to admins', {
+            adminIds,
+            username,
+            bookTitle: book.title,
           })
-          const profile = profiles.find((p) => p.id === validatedData.qualityProfileId)
-          if (profile) qualityProfileName = profile.name
+
+          await NotificationService.sendNotification(
+            adminIds,
+            'request_submitted',
+            'New Book Request',
+            book.title,
+            book.author || 'Unknown Author',
+            book.description || 'No description available',
+            book.coverImage,
+            username,
+            'Pending',
+            qualityProfileName,
+            '/requests/all'
+          )
+        } catch (error) {
+          logger.error('Background notification error', { error })
         }
-      } catch (error) {
-        logger.error('Failed to fetch quality profile', { error })
       }
 
-      // Send notification to admins
-      if (book) {
-        const adminIds = await NotificationService.getAdminUserIds()
-
-        logger.info('Sending notification to admins', { adminIds, username, bookTitle: book.title })
-
-        await NotificationService.sendNotification(
-          adminIds,
-          'request_submitted',
-          'New Book Request',
-          book.title,
-          book.author || 'Unknown Author',
-          book.description || 'No description available',
-          book.coverImage,
-          username,
-          'Pending',
-          qualityProfileName,
-          '/requests/all'
-        )
-      }
+      // Fire and forget
+      processNotifications().catch((err) =>
+        logger.error('Unhandled notification background error', { err })
+      )
 
       return NextResponse.json({ request: newRequest }, { status: 201 })
     }

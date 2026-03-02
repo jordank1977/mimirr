@@ -146,15 +146,35 @@ export default function AllRequestsPage() {
     }
   }
 
+  const isUnreleased = (r: RequestWithBook) =>
+    r.bookPublishedDate && new Date(r.bookPublishedDate) > new Date()
+
   const filteredRequests =
     filter === 'all'
       ? requests
-      : requests.filter((r) => r.status === filter)
+      : filter === 'unreleased'
+        ? requests.filter(
+            (r) =>
+              (r.status === 'processing' || r.status === 'approved') &&
+              isUnreleased(r)
+          )
+        : filter === 'processing'
+          ? requests.filter(
+              (r) => r.status === 'processing' && !isUnreleased(r)
+            )
+          : requests.filter((r) => r.status === filter)
 
   const stats = {
     total: requests.length,
     pending: requests.filter((r) => r.status === 'pending').length,
-    processing: requests.filter((r) => r.status === 'processing').length,
+    unreleased: requests.filter(
+      (r) =>
+        (r.status === 'processing' || r.status === 'approved') &&
+        isUnreleased(r)
+    ).length,
+    processing: requests.filter(
+      (r) => r.status === 'processing' && !isUnreleased(r)
+    ).length,
     available: requests.filter((r) => r.status === 'available').length,
     declined: requests.filter((r) => r.status === 'declined').length,
   }
@@ -179,7 +199,7 @@ export default function AllRequestsPage() {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <div className="bg-background-card border border-border rounded-lg p-4">
           <p className="text-sm text-foreground-muted">Total</p>
           <p className="text-2xl font-bold">{stats.total}</p>
@@ -187,6 +207,10 @@ export default function AllRequestsPage() {
         <div className="bg-background-card border border-border rounded-lg p-4">
           <p className="text-sm text-foreground-muted">Pending</p>
           <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+        </div>
+        <div className="bg-background-card border border-border rounded-lg p-4">
+          <p className="text-sm text-foreground-muted">Unreleased</p>
+          <p className="text-2xl font-bold text-primary">{stats.unreleased}</p>
         </div>
         <div className="bg-background-card border border-border rounded-lg p-4">
           <p className="text-sm text-foreground-muted">Processing</p>
@@ -211,6 +235,13 @@ export default function AllRequestsPage() {
             onClick={() => setFilter('pending')}
           >
             Pending ({stats.pending})
+          </Button>
+          <Button
+            variant={filter === 'unreleased' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('unreleased')}
+          >
+            Unreleased ({stats.unreleased})
           </Button>
           <Button
             variant={filter === 'processing' ? 'default' : 'outline'}
@@ -247,7 +278,7 @@ export default function AllRequestsPage() {
           variant="outline"
           size="sm"
           onClick={handlePollStatus}
-          disabled={polling || stats.processing === 0}
+          disabled={polling || (stats.processing === 0 && stats.unreleased === 0)}
         >
           {polling ? 'Checking...' : 'Check Status Now'}
         </Button>
@@ -304,6 +335,19 @@ export default function AllRequestsPage() {
                         Requested:{' '}
                         {new Date(request.requestedAt).toLocaleDateString()}
                       </p>
+                      {request.bookPublishedDate &&
+                        new Date(request.bookPublishedDate) > new Date() && (
+                          <p className="text-primary font-medium">
+                            Releases:{' '}
+                            {new Date(
+                              request.bookPublishedDate
+                            ).toLocaleDateString(undefined, {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                            })}
+                          </p>
+                        )}
                       {request.notes && (
                         <p className="italic line-clamp-2">
                           Note: {request.notes}
@@ -358,7 +402,7 @@ export default function AllRequestsPage() {
 
       <ConfirmDialog
         open={declineConfirm.show}
-        onOpenChange={(show) => setDeclineConfirm({ show, id: null })}
+        onOpenChange={(show) => setDeleteConfirm({ show, id: null })}
         onConfirm={confirmDecline}
         title="Decline Request"
         description="Are you sure you want to decline this request? The user will not be notified."

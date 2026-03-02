@@ -217,7 +217,9 @@ export default function RequestsPage() {
             variant="outline"
             size="sm"
             onClick={handlePollStatus}
-            disabled={polling || stats.processing === 0}
+            disabled={
+              polling || (stats.processing === 0 && stats.unreleased === 0)
+            }
             className="w-full sm:w-auto"
           >
             {polling ? 'Checking...' : 'Check Status Now'}

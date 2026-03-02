@@ -59,132 +59,131 @@ export async function POST(
       return NextResponse.json({ request: updatedRequest })
     }
 
-    // Add book to Bookshelf
-    logger.info('Adding book to Bookshelf', {
-      requestId,
-      bookId: book.id,
-      title: book.title,
-      author: book.author,
-      qualityProfileId: existingRequest.qualityProfileId,
+    // Determine the initial status based on release date
+    const isUnreleased =
+      book.publishedDate && new Date(book.publishedDate) > new Date()
+    const initialStatus = isUnreleased ? 'approved' : 'processing'
+
+    // Update request status immediately to provide fast UI response
+    const updatedRequest = await RequestService.updateRequest(requestId, {
+      status: initialStatus,
+      processedBy: user.userId,
     })
 
-    const result = await BookshelfService.addBook(
-      {
-        url: bookshelfUrl,
-        apiKey: bookshelfApiKey,
-      },
-      {
-        title: book.title,
-        author: book.author || 'Unknown Author',
-        isbn: book.isbn13 || book.isbn,
-        monitored: true,
-        qualityProfileId: existingRequest.qualityProfileId,
-      }
-    )
-
-    if (!result.success) {
-      logger.error('Failed to add book to Bookshelf', {
-        requestId,
-        error: result.error,
-      })
-
-      // Send notification to admins about Bookshelf error
-      const adminIds = await NotificationService.getAdminUserIds()
-
-      // Get requesting user's details
-      const requestingUser = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, existingRequest.userId))
-        .limit(1)
-
-      const username = requestingUser[0]?.username || 'Unknown User'
-
-      // Get quality profile name from Bookshelf
-      let qualityProfileName = 'Unknown'
+    // Process Bookshelf addition in the background
+    // We don't 'await' this so the API can respond immediately
+    const processBookshelfAddition = async () => {
       try {
-        if (bookshelfUrl && bookshelfApiKey) {
+        logger.info('Adding book to Bookshelf (background)', {
+          requestId,
+          bookId: book.id,
+          title: book.title,
+        })
+
+        const result = await BookshelfService.addBook(
+          {
+            url: bookshelfUrl,
+            apiKey: bookshelfApiKey,
+          },
+          {
+            title: book.title,
+            author: book.author || 'Unknown Author',
+            isbn: book.isbn13 || book.isbn,
+            monitored: true,
+            qualityProfileId: existingRequest.qualityProfileId,
+          }
+        )
+
+        if (!result.success) {
+          throw new Error(result.error)
+        }
+
+        // Update request with Bookshelf ID and mark as processing/approved
+        await RequestService.updateRequest(requestId, {
+          bookshelfId: result.bookshelfId,
+          foreignBookId: result.foreignBookId,
+        })
+
+        logger.info('Background Bookshelf addition successful', {
+          requestId,
+          bookshelfId: result.bookshelfId,
+        })
+
+        // Get requesting user's details for notification
+        const requestingUser = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, existingRequest.userId))
+          .limit(1)
+
+        const username = requestingUser[0]?.username || 'Unknown User'
+
+        // Get quality profile name from Bookshelf
+        let qualityProfileName = 'Unknown'
+        try {
           const profiles = await BookshelfService.getQualityProfiles({
             url: bookshelfUrl,
             apiKey: bookshelfApiKey,
           })
-          const profile = profiles.find((p) => p.id === existingRequest.qualityProfileId)
+          const profile = profiles.find(
+            (p) => p.id === existingRequest.qualityProfileId
+          )
           if (profile) qualityProfileName = profile.name
+        } catch (error) {
+          logger.error('Failed to fetch quality profile', { error })
         }
+
+        // Send notification to user
+        await NotificationService.sendNotification(
+          existingRequest.userId,
+          'request_approved',
+          'Book Request Approved',
+          book.title,
+          book.author || 'Unknown Author',
+          book.description || 'No description available',
+          book.coverImage,
+          username,
+          'Approved',
+          qualityProfileName,
+          '/requests'
+        )
       } catch (error) {
-        logger.error('Failed to fetch quality profile', { error })
-      }
-
-      await NotificationService.sendNotification(
-        adminIds,
-        'bookshelf_error',
-        'Bookshelf Connection Error',
-        book.title,
-        book.author || 'Unknown Author',
-        `Failed to add to Bookshelf: ${result.error}`,
-        book.coverImage,
-        username,
-        'Error',
-        qualityProfileName,
-        '/requests/all'
-      )
-
-      return NextResponse.json(
-        { error: `Failed to add book to Bookshelf: ${result.error}` },
-        { status: 500 }
-      )
-    }
-
-    // Update request with Bookshelf ID and mark as processing
-    const updatedRequest = await RequestService.updateRequest(requestId, {
-      status: 'processing',
-      processedBy: user.userId,
-      bookshelfId: result.bookshelfId,
-      foreignBookId: result.foreignBookId,
-    })
-
-    logger.info('Request approved and sent to Bookshelf', {
-      requestId,
-      bookshelfId: result.bookshelfId,
-    })
-
-    // Get requesting user's details for notification
-    const requestingUser = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, existingRequest.userId))
-      .limit(1)
-
-    const username = requestingUser[0]?.username || 'Unknown User'
-
-    // Get quality profile name from Bookshelf
-    let qualityProfileName = 'Unknown'
-    try {
-      if (bookshelfUrl && bookshelfApiKey) {
-        const profiles = await BookshelfService.getQualityProfiles({
-          url: bookshelfUrl,
-          apiKey: bookshelfApiKey,
+        logger.error('Background Bookshelf addition failed', {
+          requestId,
+          error: error instanceof Error ? error.message : String(error),
         })
-        const profile = profiles.find((p) => p.id === existingRequest.qualityProfileId)
-        if (profile) qualityProfileName = profile.name
+
+        // Send notification to admins about Bookshelf error
+        const adminIds = await NotificationService.getAdminUserIds()
+
+        // Get requesting user's details
+        const requestingUser = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, existingRequest.userId))
+          .limit(1)
+
+        const username = requestingUser[0]?.username || 'Unknown User'
+
+        await NotificationService.sendNotification(
+          adminIds,
+          'bookshelf_error',
+          'Bookshelf Connection Error',
+          book.title,
+          book.author || 'Unknown Author',
+          `Failed to add to Bookshelf: ${error instanceof Error ? error.message : String(error)}`,
+          book.coverImage,
+          username,
+          'Error',
+          'Unknown',
+          '/requests/all'
+        )
       }
-    } catch (error) {
-      logger.error('Failed to fetch quality profile', { error })
     }
 
-    // Send notification to user
-    await NotificationService.sendNotification(
-      existingRequest.userId,
-      'request_approved',
-      'Book Request Approved',
-      book.title,
-      book.author || 'Unknown Author',
-      book.description || 'No description available',
-      book.coverImage,
-      username,
-      'Approved',
-      qualityProfileName,
-      '/requests'
+    // Fire and forget the background task
+    processBookshelfAddition().catch((err) =>
+      logger.error('Unhandled background addition error', { err })
     )
 
     return NextResponse.json({ request: updatedRequest })
