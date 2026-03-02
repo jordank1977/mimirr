@@ -541,9 +541,9 @@ export class BookshelfService {
         monitored: true,
         rootFolderPath: rootFolderPath,
         addOptions: {
-          monitor: 'none', // Don't auto-monitor new books - only monitor books in booksToMonitor
+          monitor: 'none', // Corresponds to "Monitor New Books: None" in Readarr UI
           searchForMissingBooks: true,
-          monitored: true,
+          monitored: true, // This monitors the book specified in booksToMonitor
           booksToMonitor: [bookMatch.foreignBookId], // Only monitor this specific book
         },
       }

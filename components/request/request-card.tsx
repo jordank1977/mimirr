@@ -48,6 +48,11 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
             </div>
 
             <div className="mt-2 space-y-1 text-xs text-foreground-muted">
+              {request.requestedBy && (
+                <p className="font-medium text-foreground">
+                  Requested by: {request.requestedBy}
+                </p>
+              )}
               <p>Requested: {requestDate}</p>
               {request.bookPublishedDate &&
                 new Date(request.bookPublishedDate) > new Date() && (

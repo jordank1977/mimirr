@@ -19,10 +19,8 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request)
 
-    // Admins see all requests, regular users see only their own
-    const requests = user.role === 'admin'
-      ? await RequestService.getAllRequests()
-      : await RequestService.getRequestsByUserId(user.userId)
+    // My Requests always shows only the user's own requests, even for admins
+    const requests = await RequestService.getRequestsByUserId(user.userId)
 
     return NextResponse.json({ requests })
   } catch (error) {

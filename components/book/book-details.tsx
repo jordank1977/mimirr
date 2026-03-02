@@ -58,12 +58,25 @@ export function BookDetails({ book }: BookDetailsProps) {
 
         {/* Metadata */}
         <div className="grid grid-cols-2 gap-4">
-          {book.rating && (
+          {book.rating !== undefined && book.rating !== null && (
             <div>
               <p className="text-sm text-foreground-muted">Rating</p>
               <div className="flex items-center gap-1">
-                <span className="text-yellow-500">★</span>
-                <span className="font-semibold">
+                <div className="flex">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <span
+                      key={star}
+                      className={
+                        star <= Math.round(book.rating!)
+                          ? 'text-yellow-500'
+                          : 'text-border'
+                      }
+                    >
+                      ★
+                    </span>
+                  ))}
+                </div>
+                <span className="font-semibold ml-1">
                   {book.rating.toFixed(1)} / 5
                 </span>
               </div>

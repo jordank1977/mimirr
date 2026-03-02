@@ -10,6 +10,7 @@ export interface RequestWithBook extends Request {
   bookAuthor: string
   bookCoverImage?: string
   bookPublishedDate?: string
+  requestedBy?: string
 }
 
 export class RequestService {
@@ -89,17 +90,21 @@ export class RequestService {
   ): Promise<RequestWithBook[]> {
     try {
       const userRequests = await db
-        .select()
+        .select({
+          request: requests,
+          username: users.username,
+        })
         .from(requests)
+        .leftJoin(users, eq(requests.userId, users.id))
         .where(eq(requests.userId, userId))
         .orderBy(desc(requests.requestedAt))
 
       // Batch fetch all book details
-      const bookIds = userRequests.map(r => r.bookId)
+      const bookIds = userRequests.map((r) => r.request.bookId)
       const booksMap = await BookService.getBooksByIds(bookIds)
 
       // Enrich with book details
-      const enrichedRequests = userRequests.map((request) => {
+      const enrichedRequests = userRequests.map(({ request, username }) => {
         const book = booksMap.get(request.bookId)
         return {
           ...request,
@@ -107,6 +112,7 @@ export class RequestService {
           bookAuthor: book?.author || 'Unknown Author',
           bookCoverImage: book?.coverImage,
           bookPublishedDate: book?.publishedDate,
+          requestedBy: username || 'Unknown User',
         }
       })
 
@@ -123,16 +129,20 @@ export class RequestService {
   static async getAllRequests(): Promise<RequestWithBook[]> {
     try {
       const allRequests = await db
-        .select()
+        .select({
+          request: requests,
+          username: users.username,
+        })
         .from(requests)
+        .leftJoin(users, eq(requests.userId, users.id))
         .orderBy(desc(requests.requestedAt))
 
       // Batch fetch all book details
-      const bookIds = allRequests.map(r => r.bookId)
+      const bookIds = allRequests.map((r) => r.request.bookId)
       const booksMap = await BookService.getBooksByIds(bookIds)
 
       // Enrich with book details
-      const enrichedRequests = allRequests.map((request) => {
+      const enrichedRequests = allRequests.map(({ request, username }) => {
         const book = booksMap.get(request.bookId)
         return {
           ...request,
@@ -140,6 +150,7 @@ export class RequestService {
           bookAuthor: book?.author || 'Unknown Author',
           bookCoverImage: book?.coverImage,
           bookPublishedDate: book?.publishedDate,
+          requestedBy: username || 'Unknown User',
         }
       })
 

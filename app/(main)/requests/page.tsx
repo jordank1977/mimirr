@@ -174,15 +174,8 @@ export default function RequestsPage() {
       </div>
 
       {/* Filter Buttons */}
-      <div className="space-y-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-          <Button
-            variant={filter === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFilter('all')}
-          >
-            All ({stats.total})
-          </Button>
           <Button
             variant={filter === 'pending' ? 'default' : 'outline'}
             size="sm"
@@ -211,20 +204,25 @@ export default function RequestsPage() {
           >
             Available ({stats.available})
           </Button>
-        </div>
-        <div className="sm:flex sm:justify-end">
           <Button
-            variant="outline"
+            variant={filter === 'all' ? 'default' : 'outline'}
             size="sm"
-            onClick={handlePollStatus}
-            disabled={
-              polling || (stats.processing === 0 && stats.unreleased === 0)
-            }
-            className="w-full sm:w-auto"
+            onClick={() => setFilter('all')}
           >
-            {polling ? 'Checking...' : 'Check Status Now'}
+            All ({stats.total})
           </Button>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handlePollStatus}
+          disabled={
+            polling || (stats.processing === 0 && stats.unreleased === 0)
+          }
+          className="w-full sm:w-auto"
+        >
+          {polling ? 'Checking...' : 'Check Status Now'}
+        </Button>
       </div>
 
       {/* Requests List */}
