@@ -741,49 +741,25 @@ export class BookshelfService {
           }
         }
 
-        if (!bookFound) {
-          logger.info('Book missing from author library, explicitly adding book', {
-            title: bookMatch.title,
-            foreignBookId: bookMatch.foreignBookId,
-            authorId: data.id
-          })
-
-          // Prepare editions list - Bookshelf REQUIRES exactly one monitored edition in the payload
-          // to successfully process AddSkyhookData during addition.
-          const lookupEditions = bookMatch.editions || []
-          let editionsToPayload: any[] = []
-          
-          if (lookupEditions.length > 0) {
-            // Find the best edition (monitor the first one, but keep the list minimal to avoid duplicates/conflicts)
-            editionsToPayload = [{ ...lookupEditions[0], monitored: true }]
-          } else {
-            // Priority: use the specific edition ID if provided at top level, fallback to book ID
-            const fallbackEditionId = bookMatch.foreignEditionId || bookMatch.ForeignEditionId || bookMatch.foreignBookId;
-            
-            logger.info('No editions list found in book lookup results, creating synthetic edition', { 
-              foreignBookId: bookMatch.foreignBookId,
-              usingEditionId: fallbackEditionId
-            })
-            
-            // Create a synthetic edition to satisfy Bookshelf's requirement for exactly one monitored edition.
-            editionsToPayload = [{
-              foreignEditionId: fallbackEditionId,
+          if (!bookFound) {
+            logger.info('Book missing from author library, explicitly adding book', {
               title: bookMatch.title,
-              monitored: true
-            }]
-          }
+              foreignBookId: bookMatch.foreignBookId,
+              authorId: data.id
+            })
 
-          // Construct BookResource payload
-          // We use the metadata-rich object from lookup to trigger a clean addition
-          const bookToAdd = {
-            title: bookMatch.title,
-            authorId: data.id,
-            foreignBookId: bookMatch.foreignBookId,
-            monitored: true,
-            editions: editionsToPayload,
-            addOptions: {
-              searchForNewBook: true // Trigger immediate search
-            },
+            // Construct BookResource payload
+            // CRITICAL FIX: We OMIT the 'editions' array from the payload.
+            // Explicitly sending editions causes UNIQUE constraint violations for duplicate edition IDs.
+            // Bookshelf will automatically fetch and populate editions via its metadata provider (Skyhook).
+            const bookToAdd = {
+              title: bookMatch.title,
+              authorId: data.id,
+              foreignBookId: bookMatch.foreignBookId,
+              monitored: true,
+              addOptions: {
+                searchForNewBook: true // Trigger immediate search
+              },
             // Include author info to satisfy Bookshelf's validation
             author: {
               id: data.id,
