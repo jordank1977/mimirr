@@ -533,23 +533,22 @@ export class BookshelfService {
       // Step 4: Add the AUTHOR with specific book monitoring
       // Bookshelf will fetch all the author's books from metadata,
       // but only monitor the one we specify in booksToMonitor
-      const authorToAdd = {
-        foreignAuthorId: authorMetadata.foreignAuthorId,
-        authorName: authorMetadata.authorName,
-        qualityProfileId: bookData.qualityProfileId,
-        metadataProfileId: 1,
-        monitored: true,
-        rootFolderPath: rootFolderPath,
-        addOptions: {
-          monitor: 'none', // Corresponds to "Monitor New Books: None" in Readarr UI
-          searchForMissingBooks: true,
-          monitored: true, // This monitors the book specified in booksToMonitor
-          booksToMonitor: [bookMatch.foreignBookId], // Only monitor this specific book
-        },
-        // Some versions of Readarr use these fields at the top level
-        authorMonitor: 'none',
-        monitorNewItems: 'none',
-      }
+        const authorToAdd = {
+          foreignAuthorId: authorMetadata.foreignAuthorId,
+          authorName: authorMetadata.authorName,
+          qualityProfileId: bookData.qualityProfileId,
+          metadataProfileId: 1,
+          monitored: true, // Ensure the author is added as Monitored
+          rootFolderPath: rootFolderPath,
+          addOptions: {
+            monitor: 'none', // Corresponds to "Monitor New Books: None" in Readarr UI
+            searchForMissingBooks: true,
+            monitored: true, // This monitors the book specified in booksToMonitor
+            booksToMonitor: [bookMatch.foreignBookId], // Only monitor this specific book
+          },
+          // Standard Readarr field for "Monitor New Books"
+          monitorNewItems: 'none',
+        }
 
       logger.debug('Adding author to Bookshelf', {
         authorName: authorToAdd.authorName,
@@ -757,6 +756,11 @@ export class BookshelfService {
               authorId: data.id,
               foreignBookId: bookMatch.foreignBookId,
               monitored: true,
+              // CRITICAL FIX: We MUST send an empty 'editions' array. 
+              // Omiting it causes a 500 error (null pointer), but sending a full list 
+              // causes 409 errors (unique constraint violations). 
+              // An empty array allows Bookshelf to gracefully fetch and populate editions via Skyhook.
+              editions: [],
               addOptions: {
                 searchForNewBook: true // Trigger immediate search
               },
