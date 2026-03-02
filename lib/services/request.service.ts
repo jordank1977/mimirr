@@ -9,6 +9,7 @@ export interface RequestWithBook extends Request {
   bookTitle: string
   bookAuthor: string
   bookCoverImage?: string
+  bookPublishedDate?: string
 }
 
 export class RequestService {
@@ -105,6 +106,7 @@ export class RequestService {
           bookTitle: book?.title || 'Unknown Book',
           bookAuthor: book?.author || 'Unknown Author',
           bookCoverImage: book?.coverImage,
+          bookPublishedDate: book?.publishedDate,
         }
       })
 
@@ -137,6 +139,7 @@ export class RequestService {
           bookTitle: book?.title || 'Unknown Book',
           bookAuthor: book?.author || 'Unknown Author',
           bookCoverImage: book?.coverImage,
+          bookPublishedDate: book?.publishedDate,
         }
       })
 

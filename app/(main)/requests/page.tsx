@@ -98,15 +98,35 @@ export default function RequestsPage() {
     }
   }
 
+  const isUnreleased = (r: RequestWithBook) =>
+    r.bookPublishedDate && new Date(r.bookPublishedDate) > new Date()
+
   const filteredRequests =
     filter === 'all'
       ? requests
-      : requests.filter((r) => r.status === filter)
+      : filter === 'unreleased'
+        ? requests.filter(
+            (r) =>
+              (r.status === 'processing' || r.status === 'approved') &&
+              isUnreleased(r)
+          )
+        : filter === 'processing'
+          ? requests.filter(
+              (r) => r.status === 'processing' && !isUnreleased(r)
+            )
+          : requests.filter((r) => r.status === filter)
 
   const stats = {
     total: requests.length,
     pending: requests.filter((r) => r.status === 'pending').length,
-    processing: requests.filter((r) => r.status === 'processing').length,
+    unreleased: requests.filter(
+      (r) =>
+        (r.status === 'processing' || r.status === 'approved') &&
+        isUnreleased(r)
+    ).length,
+    processing: requests.filter(
+      (r) => r.status === 'processing' && !isUnreleased(r)
+    ).length,
     available: requests.filter((r) => r.status === 'available').length,
   }
 
@@ -130,7 +150,7 @@ export default function RequestsPage() {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-background-card border border-border rounded-lg p-4">
           <p className="text-sm text-foreground-muted">Total</p>
           <p className="text-2xl font-bold">{stats.total}</p>
@@ -138,6 +158,10 @@ export default function RequestsPage() {
         <div className="bg-background-card border border-border rounded-lg p-4">
           <p className="text-sm text-foreground-muted">Pending</p>
           <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+        </div>
+        <div className="bg-background-card border border-border rounded-lg p-4">
+          <p className="text-sm text-foreground-muted">Unreleased</p>
+          <p className="text-2xl font-bold text-primary">{stats.unreleased}</p>
         </div>
         <div className="bg-background-card border border-border rounded-lg p-4">
           <p className="text-sm text-foreground-muted">Processing</p>
@@ -165,6 +189,13 @@ export default function RequestsPage() {
             onClick={() => setFilter('pending')}
           >
             Pending ({stats.pending})
+          </Button>
+          <Button
+            variant={filter === 'unreleased' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('unreleased')}
+          >
+            Unreleased ({stats.unreleased})
           </Button>
           <Button
             variant={filter === 'processing' ? 'default' : 'outline'}

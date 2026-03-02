@@ -49,6 +49,19 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
 
             <div className="mt-2 space-y-1 text-xs text-foreground-muted">
               <p>Requested: {requestDate}</p>
+              {request.bookPublishedDate &&
+                new Date(request.bookPublishedDate) > new Date() && (
+                  <p className="text-primary font-medium">
+                    Releases:{' '}
+                    {new Date(
+                      request.bookPublishedDate
+                    ).toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </p>
+                )}
               {request.notes && (
                 <p className="italic line-clamp-2">Note: {request.notes}</p>
               )}

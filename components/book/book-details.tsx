@@ -31,6 +31,12 @@ export function BookDetails({ book }: BookDetailsProps) {
       {/* Book Information */}
       <div className="md:col-span-2 space-y-4 md:space-y-6">
         <div>
+          {book.publishedDate &&
+            new Date(book.publishedDate) > new Date() && (
+              <div className="inline-block px-2 py-1 mb-2 text-xs font-semibold tracking-wide text-primary-foreground uppercase bg-primary rounded-full">
+                Upcoming Release
+              </div>
+            )}
           <h1 className="text-2xl md:text-4xl font-bold text-foreground mb-2">
             {book.title}
           </h1>
@@ -72,10 +78,19 @@ export function BookDetails({ book }: BookDetailsProps) {
           {book.publishedDate && (
             <div>
               <p className="text-sm text-foreground-muted">
-                Published
+                {new Date(book.publishedDate) > new Date()
+                  ? 'Releases'
+                  : 'Published'}
               </p>
               <p className="font-semibold">
-                {new Date(book.publishedDate).getFullYear()}
+                {new Date(book.publishedDate).toLocaleDateString(
+                  undefined,
+                  {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  }
+                )}
               </p>
             </div>
           )}

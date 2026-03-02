@@ -195,8 +195,17 @@ export default function BookPage({
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
             <div>
-              <h4 className="font-medium mb-1">Request Created Successfully!</h4>
-              <p className="text-sm">Your request has been submitted and is pending admin approval. You can view all your requests on the My Requests page.</p>
+              <h4 className="font-medium mb-1">
+                {book.publishedDate &&
+                new Date(book.publishedDate) > new Date()
+                  ? 'Added to Unreleased Requests!'
+                  : 'Request Created Successfully!'}
+              </h4>
+              <p className="text-sm">
+                Your request has been submitted and is pending admin
+                approval. You can view all your requests on the My
+                Requests page.
+              </p>
             </div>
           </div>
         </div>
@@ -237,7 +246,12 @@ export default function BookPage({
           size="lg"
           className="flex-1"
           onClick={handleRequest}
-          disabled={!canRequest || requesting || requestSuccess || selectedProfileId === null}
+          disabled={
+            !canRequest ||
+            requesting ||
+            requestSuccess ||
+            selectedProfileId === null
+          }
         >
           {requesting
             ? 'Requesting...'
@@ -245,7 +259,10 @@ export default function BookPage({
               ? 'Request Sent!'
               : !canRequest
                 ? 'Already Requested'
-                : 'Request Book'}
+                : book.publishedDate &&
+                    new Date(book.publishedDate) > new Date()
+                  ? 'Request Upcoming Release'
+                  : 'Request Book'}
         </Button>
         <Button variant="outline" onClick={() => window.history.back()}>
           Go Back
