@@ -541,7 +541,9 @@ export class BookshelfService {
           monitored: true, // Ensure the author is added as Monitored
           rootFolderPath: rootFolderPath,
           addOptions: {
-            monitor: 'none', // Corresponds to "Monitor New Books: None" in Readarr UI
+            // Monitor nothing initially (we'll specify booksToMonitor)
+            // Note: If 'none' still causes issues, 'missing' or 'specific' can be tried
+            monitor: 'none', 
             searchForMissingBooks: true,
             monitored: true, // This monitors the book specified in booksToMonitor
             booksToMonitor: [bookMatch.foreignBookId], // Only monitor this specific book
@@ -747,59 +749,80 @@ export class BookshelfService {
               authorId: data.id
             })
 
+            // Prepare editions list - Bookshelf REQUIRES exactly one monitored edition in the payload
+            // to successfully process AddSkyhookData during addition.
+            const lookupEditions = bookMatch.editions || []
+            let editionsToPayload: any[] = []
+            
+            if (lookupEditions.length > 0) {
+              // Monitor the first edition we find
+              editionsToPayload = [{ ...lookupEditions[0], monitored: true }]
+            } else {
+              // Priority: use the specific edition ID if provided at top level, fallback to book ID
+              const fallbackEditionId = bookMatch.foreignEditionId || bookMatch.ForeignEditionId || bookMatch.foreignBookId;
+              
+              logger.info('No editions list found in book lookup results, creating synthetic edition', { 
+                foreignBookId: bookMatch.foreignBookId,
+                usingEditionId: fallbackEditionId
+              })
+              
+              // Create a synthetic edition to satisfy Bookshelf's requirement for exactly one monitored edition.
+              editionsToPayload = [{
+                foreignEditionId: fallbackEditionId,
+                title: bookMatch.title,
+                monitored: true
+              }]
+            }
+
             // Construct BookResource payload
-            // CRITICAL FIX: We OMIT the 'editions' array from the payload.
-            // Explicitly sending editions causes UNIQUE constraint violations for duplicate edition IDs.
-            // Bookshelf will automatically fetch and populate editions via its metadata provider (Skyhook).
             const bookToAdd = {
               title: bookMatch.title,
               authorId: data.id,
               foreignBookId: bookMatch.foreignBookId,
               monitored: true,
-              // CRITICAL FIX: We MUST send an empty 'editions' array. 
-              // Omiting it causes a 500 error (null pointer), but sending a full list 
-              // causes 409 errors (unique constraint violations). 
-              // An empty array allows Bookshelf to gracefully fetch and populate editions via Skyhook.
-              editions: [],
+              editions: editionsToPayload,
               addOptions: {
                 searchForNewBook: true // Trigger immediate search
               },
-            // Include author info to satisfy Bookshelf's validation
-            author: {
-              id: data.id,
-              foreignAuthorId: authorMetadata.foreignAuthorId,
-              authorName: authorMetadata.authorName,
-              path: data.path,
-              rootFolderPath: data.rootFolderPath
+              // Include author info to satisfy Bookshelf's validation
+              author: {
+                id: data.id,
+                foreignAuthorId: authorMetadata.foreignAuthorId,
+                authorName: authorMetadata.authorName,
+                path: data.path,
+                rootFolderPath: data.rootFolderPath
+              }
+            }
+
+            const addBookResponse = await fetch(`${baseUrl}/api/v1/book`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Api-Key': config.apiKey,
+              },
+              body: JSON.stringify(bookToAdd),
+            })
+
+            if (addBookResponse.ok) {
+              const addedBook = await addBookResponse.json()
+              logger.info('Book explicitly added to Bookshelf', {
+                bookId: addedBook.id,
+                title: addedBook.title
+              })
+            } else if (addBookResponse.status === 409) {
+              logger.info('Book addition failed with 409 Conflict, assuming book already exists and merging', {
+                foreignBookId: bookMatch.foreignBookId,
+              })
+              // If it's a conflict, the book or edition is already there. We can treat this as success.
+            } else {
+              const errorText = await addBookResponse.text()
+              logger.error('Failed to explicitly add book to Bookshelf', {
+                status: addBookResponse.status,
+                error: errorText,
+                foreignBookId: bookMatch.foreignBookId
+              })
             }
           }
-
-          const addBookResponse = await fetch(`${baseUrl}/api/v1/book`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Api-Key': config.apiKey,
-            },
-            body: JSON.stringify(bookToAdd),
-          })
-
-          if (addBookResponse.ok) {
-            const addedBook = await addBookResponse.json()
-            logger.info('Book explicitly added to Bookshelf', {
-              bookId: addedBook.id,
-              title: addedBook.title
-            })
-          } else {
-            const errorText = await addBookResponse.text()
-            logger.error('Failed to explicitly add book to Bookshelf', {
-              status: addBookResponse.status,
-              error: errorText,
-              foreignBookId: bookMatch.foreignBookId
-            })
-            // We don't return failure here because the author was added, 
-            // and Bookshelf might still find it later via background refresh.
-          }
-        }
       } catch (bookError) {
         logger.error('Error during explicit book verification/addition', { 
           error: bookError,
