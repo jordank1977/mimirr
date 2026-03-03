@@ -30,6 +30,16 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Force refresh if cached data is old (pre-rating-fix)
+    const ratingFixDate = new Date('2026-03-02T22:00:00Z')
+    if (prefs.updatedAt < ratingFixDate) {
+      logger.info('Forcing recommendation refresh due to old cache (pre-rating-fix)', { userId: payload.userId })
+      // Trigger background update but continue with current results for immediate response
+      RecommendationService.updateUserPreferences(payload.userId).catch(err => 
+        logger.error('Failed to background update preferences', { userId: payload.userId, err })
+      )
+    }
+
     // Use cached recommendations if available
     let popularForYou: any[] = []
     let newForYou: any[] = []

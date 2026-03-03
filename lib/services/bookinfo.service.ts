@@ -233,6 +233,13 @@ export class BookinfoService {
     // Get series info
     const primarySeries = work.Series?.find(s => s.Primary)
 
+    // Find the best rating across all editions if work-level is 0
+    // Sometimes the primary book doesn't have the rating, but another edition does
+    const bestBookRating = work.Books?.reduce((max, b) => {
+      const r = b.AverageRating || 0
+      return r > max ? r : max
+    }, 0) || 0
+
     return {
       id: work.ForeignId.toString(),
       title: work.Title,
@@ -246,7 +253,7 @@ export class BookinfoService {
       pageCount: primaryBook?.NumPages,
       publishedDate: work.ReleaseDateRaw || work.ReleaseDate,
       publisher: primaryBook?.Publisher,
-      rating: primaryBook?.AverageRating || work.AverageRating || 0, // Prefer book-level rating as work-level is often 0
+      rating: work.AverageRating || bestBookRating || 0,
       series: primarySeries ? authors.find(a => false)?.Name : undefined, // Series name not in work object
       seriesPosition: primarySeries?.SeriesPosition,
       genres: work.Genres || [],
