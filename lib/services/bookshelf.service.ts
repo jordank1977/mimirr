@@ -541,12 +541,10 @@ export class BookshelfService {
           monitored: true, // Ensure the author is added as Monitored
           rootFolderPath: rootFolderPath,
           addOptions: {
-            // Monitor nothing initially (we'll specify booksToMonitor)
-            // Note: If 'none' still causes issues, 'missing' or 'specific' can be tried
-            monitor: 'none', 
+            // As seen in Readarr's getNewBook.js frontend logic, when monitoring a specific book,
+            // 'monitor' is omitted from addOptions, and we rely purely on 'booksToMonitor'.
             searchForMissingBooks: true,
-            monitored: true, // This monitors the book specified in booksToMonitor
-            booksToMonitor: [bookMatch.foreignBookId], // Only monitor this specific book
+            booksToMonitor: [bookMatch.foreignBookId],
           },
           // Standard Readarr field for "Monitor New Books"
           monitorNewItems: 'none',
@@ -749,38 +747,14 @@ export class BookshelfService {
               authorId: data.id
             })
 
-            // Prepare editions list - Bookshelf REQUIRES exactly one monitored edition in the payload
-            // to successfully process AddSkyhookData during addition.
-            const lookupEditions = bookMatch.editions || []
-            let editionsToPayload: any[] = []
-            
-            if (lookupEditions.length > 0) {
-              // Monitor the first edition we find
-              editionsToPayload = [{ ...lookupEditions[0], monitored: true }]
-            } else {
-              // Priority: use the specific edition ID if provided at top level, fallback to book ID
-              const fallbackEditionId = bookMatch.foreignEditionId || bookMatch.ForeignEditionId || bookMatch.foreignBookId;
-              
-              logger.info('No editions list found in book lookup results, creating synthetic edition', { 
-                foreignBookId: bookMatch.foreignBookId,
-                usingEditionId: fallbackEditionId
-              })
-              
-              // Create a synthetic edition to satisfy Bookshelf's requirement for exactly one monitored edition.
-              editionsToPayload = [{
-                foreignEditionId: fallbackEditionId,
-                title: bookMatch.title,
-                monitored: true
-              }]
-            }
-
-            // Construct BookResource payload
+            // Construct BookResource payload mimicking Readarr's getNewBook.js exactly.
+            // We pass the entire bookMatch object (which contains the original, unmodified editions array),
+            // and just append the addOptions and monitored flags. 
+            // Manipulating editions manually causes AddSkyhookData to fail matching (500 error).
             const bookToAdd = {
-              title: bookMatch.title,
+              ...bookMatch,
               authorId: data.id,
-              foreignBookId: bookMatch.foreignBookId,
               monitored: true,
-              editions: editionsToPayload,
               addOptions: {
                 searchForNewBook: true // Trigger immediate search
               },
