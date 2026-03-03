@@ -19,9 +19,12 @@ export interface BookinfoBook {
   Language?: string
   NumPages?: number
   IsEbook?: boolean
-  ImageUrl?: string
-  Description?: string
-  ReleaseDate?: string
+    ImageUrl?: string
+    Description?: string
+    ReleaseDate?: string
+    AverageRating?: number
+    RatingCount?: number
+    RatingSum?: number
   Contributors?: Array<{
     ForeignId: number
     Role: string

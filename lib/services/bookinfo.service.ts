@@ -246,7 +246,7 @@ export class BookinfoService {
       pageCount: primaryBook?.NumPages,
       publishedDate: work.ReleaseDateRaw || work.ReleaseDate,
       publisher: primaryBook?.Publisher,
-      rating: work.AverageRating, // Rating is at work level
+      rating: primaryBook?.AverageRating || work.AverageRating || 0, // Prefer book-level rating as work-level is often 0
       series: primarySeries ? authors.find(a => false)?.Name : undefined, // Series name not in work object
       seriesPosition: primarySeries?.SeriesPosition,
       genres: work.Genres || [],
