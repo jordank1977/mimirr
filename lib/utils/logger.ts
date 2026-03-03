@@ -65,55 +65,30 @@ const createLogger = () => {
     }
   }
 
-  // Next.js Dev Mode Hack: Pino transports (which use worker threads) often fail 
-  // during hot-reloading in dev mode ("the worker has exited").
-  // We use standard streams in dev and full transports in production.
-  if (!IS_PROD) {
-    return pino(
-      pinoConfig,
-      pino.multistream([
-        { 
-          stream: require('pino-pretty')({
-            colorize: true,
-            ignore: 'pid,hostname,reqId',
-            messageFormat: '{reqId ? "[" + reqId + "] " : ""}{msg}',
-            translateTime: 'SYS:standard',
-          }) 
-        },
-        { 
-          stream: fs.createWriteStream(LOG_FILE, { flags: 'a' }) 
-        }
-      ])
-    )
-  }
-
-  // Production: Use high-performance transports with worker threads
-  const transports = pino.transport({
-    targets: [
-      {
-        target: 'pino-pretty',
-        level: process.env.LOG_LEVEL || 'info',
-        options: {
+  // Next.js Multi-Mode Stability Hack: 
+  // Pino transports (pino.transport({ targets: [...] })) use Node.js worker threads.
+  // Next.js's bundling system (Webpack/Turbo) often fails to include these dynamic
+  // worker files in the standalone output, or they crash during HMR in dev mode.
+  //
+  // To ensure absolute stability in both Dev and Production (Docker), we use 
+  // pino.multistream with standard Node.js streams. This bypasses the need for 
+  // external worker.js files while still providing high-performance async logging.
+  return pino(
+    pinoConfig,
+    pino.multistream([
+      { 
+        stream: require('pino-pretty')({
           colorize: true,
           ignore: 'pid,hostname,reqId',
           messageFormat: '{reqId ? "[" + reqId + "] " : ""}{msg}',
           translateTime: 'SYS:standard',
-        },
+        }) 
       },
-      {
-        target: 'pino-roll',
-        level: 'debug',
-        options: {
-          file: LOG_FILE,
-          frequency: 'daily',
-          size: '10m',
-          mkdir: true,
-        },
-      },
-    ],
-  })
-
-  return pino(pinoConfig, transports)
+      { 
+        stream: fs.createWriteStream(LOG_FILE, { flags: 'a' }) 
+      }
+    ])
+  )
 }
 
 const pinoLogger = createLogger()

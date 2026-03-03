@@ -40,6 +40,9 @@ const nextConfig = {
       exclude: ['error', 'warn'], // Keep error and warn logs
     } : false,
   },
+
+  // Ensure pino is treated as a server-side module to avoid bundler issues
+  serverExternalPackages: ['pino', 'pino-pretty', 'pino-roll'],
 }
 
 module.exports = nextConfig
