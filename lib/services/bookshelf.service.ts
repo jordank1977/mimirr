@@ -741,60 +741,74 @@ export class BookshelfService {
         }
 
           if (!bookFound) {
-            logger.info('Book missing from author library, explicitly adding book', {
-              title: bookMatch.title,
-              foreignBookId: bookMatch.foreignBookId,
-              authorId: data.id
-            })
-
-            // Construct BookResource payload mimicking Readarr's getNewBook.js exactly.
-            // We pass the entire bookMatch object (which contains the original, unmodified editions array),
-            // and just append the addOptions and monitored flags. 
-            // Manipulating editions manually causes AddSkyhookData to fail matching (500 error).
-            const bookToAdd = {
-              ...bookMatch,
-              authorId: data.id,
-              monitored: true,
-              addOptions: {
-                searchForNewBook: true // Trigger immediate search
-              },
-              // Include author info to satisfy Bookshelf's validation
-              author: {
-                id: data.id,
-                foreignAuthorId: authorMetadata.foreignAuthorId,
-                authorName: authorMetadata.authorName,
-                path: data.path,
-                rootFolderPath: data.rootFolderPath
-              }
-            }
-
-            const addBookResponse = await fetch(`${baseUrl}/api/v1/book`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Api-Key': config.apiKey,
-              },
-              body: JSON.stringify(bookToAdd),
-            })
-
-            if (addBookResponse.ok) {
-              const addedBook = await addBookResponse.json()
-              logger.info('Book explicitly added to Bookshelf', {
-                bookId: addedBook.id,
-                title: addedBook.title
-              })
-            } else if (addBookResponse.status === 409) {
-              logger.info('Book addition failed with 409 Conflict, assuming book already exists and merging', {
+            const lookupEditions = bookMatch.editions || [];
+            
+            if (lookupEditions.length === 0) {
+              logger.info('Book missing from author library, but has no editions in metadata. Skipping explicit add to avoid Readarr 500 error. Relying on background Author Refresh.', {
+                title: bookMatch.title,
                 foreignBookId: bookMatch.foreignBookId,
-              })
-              // If it's a conflict, the book or edition is already there. We can treat this as success.
+              });
             } else {
-              const errorText = await addBookResponse.text()
-              logger.error('Failed to explicitly add book to Bookshelf', {
-                status: addBookResponse.status,
-                error: errorText,
-                foreignBookId: bookMatch.foreignBookId
+              logger.info('Book missing from author library, explicitly adding book', {
+                title: bookMatch.title,
+                foreignBookId: bookMatch.foreignBookId,
+                authorId: data.id
               })
+
+              // Construct BookResource payload mimicking Readarr's getNewBook.js but ensuring
+              // exactly one monitored edition is present. AddSkyhookData in Readarr (C#)
+              // calls .Single(x => x.Monitored) and crashes with a 500 error if zero are found.
+              const editionsToPayload = lookupEditions.map((e: any, index: number) => ({
+                ...e,
+                monitored: index === 0
+              }));
+
+              const bookToAdd = {
+                ...bookMatch,
+                authorId: data.id,
+                monitored: true,
+                editions: editionsToPayload,
+                addOptions: {
+                  searchForNewBook: true // Trigger immediate search
+                },
+                // Include author info to satisfy Bookshelf's validation
+                author: {
+                  id: data.id,
+                  foreignAuthorId: authorMetadata.foreignAuthorId,
+                  authorName: authorMetadata.authorName,
+                  path: data.path,
+                  rootFolderPath: data.rootFolderPath
+                }
+              }
+
+              const addBookResponse = await fetch(`${baseUrl}/api/v1/book`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Api-Key': config.apiKey,
+                },
+                body: JSON.stringify(bookToAdd),
+              })
+
+              if (addBookResponse.ok) {
+                const addedBook = await addBookResponse.json()
+                logger.info('Book explicitly added to Bookshelf', {
+                  bookId: addedBook.id,
+                  title: addedBook.title
+                })
+              } else if (addBookResponse.status === 409) {
+                logger.info('Book addition failed with 409 Conflict, assuming book already exists and merging', {
+                  foreignBookId: bookMatch.foreignBookId,
+                })
+                // If it's a conflict, the book or edition is already there. We can treat this as success.
+              } else {
+                const errorText = await addBookResponse.text()
+                logger.error('Failed to explicitly add book to Bookshelf', {
+                  status: addBookResponse.status,
+                  error: errorText,
+                  foreignBookId: bookMatch.foreignBookId
+                })
+              }
             }
           }
       } catch (bookError) {
