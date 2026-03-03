@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { AuthService } from '@/lib/services/auth.service'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+async function sessionHandler(request: NextRequest) {
   try {
     const payload = await requireAuth(request)
     const user = await AuthService.getUserById(payload.userId)
@@ -26,3 +27,5 @@ export async function GET(request: NextRequest) {
     return handleAuthError(error)
   }
 }
+
+export const GET = withLogging(sessionHandler)

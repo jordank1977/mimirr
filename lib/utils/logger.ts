@@ -65,30 +65,44 @@ const createLogger = () => {
     }
   }
 
-  // Next.js Multi-Mode Stability Hack: 
-  // Pino transports (pino.transport({ targets: [...] })) use Node.js worker threads.
-  // Next.js's bundling system (Webpack/Turbo) often fails to include these dynamic
-  // worker files in the standalone output, or they crash during HMR in dev mode.
+  // Next.js Multi-Mode Stability Configuration:
   //
-  // To ensure absolute stability in both Dev and Production (Docker), we use 
-  // pino.multistream with standard Node.js streams. This bypasses the need for 
-  // external worker.js files while still providing high-performance async logging.
-  return pino(
-    pinoConfig,
-    pino.multistream([
-      { 
-        stream: require('pino-pretty')({
+  // We use pino.transport to enable high-performance, non-blocking logging
+  // and robust log rotation via pino-roll.
+  //
+  // To ensure compatibility with Next.js standalone builds and Docker,
+  // these packages are marked as 'serverExternalPackages' in next.config.js.
+  //
+  // Note: During HMR (Hot Module Replacement) in development, Next.js can
+  // sometimes trigger worker thread crashes. The use of string-based targets
+  // allows Pino to resolve the worker scripts correctly from node_modules.
+  
+  const transport = pino.transport({
+    targets: [
+      {
+        target: 'pino-pretty',
+        options: {
           colorize: true,
           ignore: 'pid,hostname,reqId',
           messageFormat: '{reqId ? "[" + reqId + "] " : ""}{msg}',
           translateTime: 'SYS:standard',
-        }) 
+        },
+        level: process.env.LOG_LEVEL || 'info',
       },
-      { 
-        stream: fs.createWriteStream(LOG_FILE, { flags: 'a' }) 
+      {
+        target: 'pino-roll',
+        options: {
+          file: LOG_FILE,
+          frequency: 'daily',
+          size: '10m',
+          mkdir: true,
+        },
+        level: process.env.LOG_LEVEL || 'info',
       }
-    ])
-  )
+    ],
+  });
+
+  return pino(pinoConfig, transport);
 }
 
 const pinoLogger = createLogger()

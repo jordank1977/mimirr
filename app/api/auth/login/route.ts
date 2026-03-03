@@ -3,10 +3,11 @@ import { AuthService } from '@/lib/services/auth.service'
 import { loginSchema } from '@/lib/utils/validation'
 import { setAuthCookie } from '@/lib/middleware/auth.middleware'
 import { logger } from '@/lib/utils/logger'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+async function loginHandler(request: NextRequest) {
   try {
     const body = await request.json()
 
@@ -44,3 +45,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const POST = withLogging(loginHandler)
