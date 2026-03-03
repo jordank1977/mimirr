@@ -9,13 +9,14 @@ import { createRequestSchema, createOnlyThisBookRequestSchema } from '@/lib/util
 import { logger } from '@/lib/utils/logger'
 import { db, users, settings } from '@/lib/db'
 import { eq } from 'drizzle-orm'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/requests - Get user's requests (all requests for admins)
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/requests - Create a new request
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
     const body = await request.json()
@@ -184,3 +185,6 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)
+export const POST = withLogging(postHandler)

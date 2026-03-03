@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { logger } from '@/lib/utils/logger'
 
 export default function LogsSettingsPage() {
   const [logLevel, setLogLevel] = useState('info')

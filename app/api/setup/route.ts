@@ -2,27 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, users } from '@/lib/db'
 import { hashPassword } from '@/lib/utils/crypto'
 import { logger } from '@/lib/utils/logger'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * Check if setup is needed
  */
-export async function GET() {
+async function getHandler() {
   try {
-    console.log('DEBUG: Attempting to query users table...')
     const userCount = await db.select().from(users)
-    console.log('DEBUG: Query successful, user count:', userCount.length)
     const needsSetup = userCount.length === 0
 
     return NextResponse.json({ needsSetup })
   } catch (error: any) {
-    console.error('DEBUG: Database error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack,
-      rawError: error
-    })
     logger.error('Failed to check setup status', { error })
     return NextResponse.json(
       { error: 'Failed to check setup status' },
@@ -34,7 +27,7 @@ export async function GET() {
 /**
  * Create initial admin account
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     // Check if setup is already complete
     const userCount = await db.select().from(users)
@@ -98,3 +91,6 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)
+export const POST = withLogging(postHandler)

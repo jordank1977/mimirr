@@ -7,7 +7,8 @@ import { logger } from '@/lib/utils/logger'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/logs/view - Serve the raw log file
+ * GET /api/logs/view - Serve the parsed log file
+ * Now handles NDJSON format from Pino and formats it back to plain text for the UI.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -27,8 +28,28 @@ export async function GET(request: NextRequest) {
     }
 
     const logContent = fs.readFileSync(logPath, 'utf8')
+    const lines = logContent.split('\n').filter(line => line.trim())
+    
+    const formattedLogs = lines.map(line => {
+      try {
+        const log = JSON.parse(line)
+        const timestamp = new Date(log.time).toISOString()
+        const level = getLevelName(log.level)
+        const requestId = log.reqId ? ` [${log.reqId}]` : ''
+        const message = log.msg || ''
+        
+        // Extract data that isn't standard Pino fields
+        const { time, level: l, msg, reqId, hostname, pid, ...data } = log
+        const dataStr = Object.keys(data).length > 0 ? ` | ${JSON.stringify(data)}` : ''
+        
+        return `[${timestamp}] [${level.toUpperCase()}]${requestId} ${message}${dataStr}`
+      } catch (e) {
+        // If it's not JSON (e.g. old logs), return as is
+        return line
+      }
+    }).join('\n')
 
-    return new NextResponse(logContent, {
+    return new NextResponse(formattedLogs, {
       status: 200,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -46,4 +67,13 @@ export async function GET(request: NextRequest) {
       headers: { 'Content-Type': 'text/plain' },
     })
   }
+}
+
+function getLevelName(level: number): string {
+  if (level <= 10) return 'trace'
+  if (level <= 20) return 'debug'
+  if (level <= 30) return 'info'
+  if (level <= 40) return 'warn'
+  if (level <= 50) return 'error'
+  return 'fatal'
 }

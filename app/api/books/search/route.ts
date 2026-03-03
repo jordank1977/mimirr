@@ -5,10 +5,11 @@ import { BookshelfService } from '@/lib/services/bookshelf.service'
 import { logger } from '@/lib/utils/logger'
 import { db, requests, settings } from '@/lib/db'
 import { eq } from 'drizzle-orm'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   try {
     // Require authentication
     const payload = await requireAuth(request)
@@ -107,3 +108,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(handler)
