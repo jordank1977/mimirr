@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { NotificationService } from '@/lib/services/notification.service'
 import { logger } from '@/lib/utils/logger'
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic'
 /**
  * POST /api/settings/notifications/test - Test Discord webhook (admin only)
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
 
@@ -45,3 +46,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const POST = withLogging(postHandler)

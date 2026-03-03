@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { UserService } from '@/lib/services/user.service'
 import { createUserSchema } from '@/lib/utils/validation'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/users - Get all users (admin only)
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
 
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/users - Create a new user (admin only)
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
 
@@ -60,3 +61,6 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)
+export const POST = withLogging(postHandler)

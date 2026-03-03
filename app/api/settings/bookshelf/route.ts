@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { db, settings } from '@/lib/db'
 import { eq } from 'drizzle-orm'
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/settings/bookshelf - Get Bookshelf configuration
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/settings/bookshelf - Update Bookshelf configuration
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await requireAdmin(request)
     const body = await request.json()
@@ -143,3 +144,6 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)
+export const POST = withLogging(postHandler)

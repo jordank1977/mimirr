@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { UserService } from '@/lib/services/user.service'
 import { updateUserSchema } from '@/lib/utils/validation'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/users/[id] - Get single user (admin only)
  */
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -37,7 +38,7 @@ export async function GET(
 /**
  * PATCH /api/users/[id] - Update user (admin only)
  */
-export async function PATCH(
+async function patchHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -93,7 +94,7 @@ export async function PATCH(
 /**
  * DELETE /api/users/[id] - Delete user (admin only)
  */
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -137,3 +138,7 @@ export async function DELETE(
     )
   }
 }
+
+export const GET = withLogging(getHandler)
+export const PATCH = withLogging(patchHandler)
+export const DELETE = withLogging(deleteHandler)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { RequestService } from '@/lib/services/request.service'
 import { BookService } from '@/lib/services/book.service'
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic'
 /**
  * POST /api/requests/[id]/decline - Decline a request (admin only)
  */
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -106,3 +107,5 @@ export async function POST(
     )
   }
 }
+
+export const POST = withLogging(postHandler)

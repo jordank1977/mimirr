@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import fs from 'fs'
 import path from 'path'
 import { logger } from '@/lib/utils/logger'
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
  * GET /api/logs/view - Serve the parsed log file
  * Now handles NDJSON format from Pino and formats it back to plain text for the UI.
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     // Only admins should see the logs
     await requireAdmin(request)
@@ -68,6 +69,8 @@ export async function GET(request: NextRequest) {
     })
   }
 }
+
+export const GET = withLogging(getHandler)
 
 function getLevelName(level: number): string {
   if (level <= 10) return 'trace'

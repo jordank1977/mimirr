@@ -96,6 +96,7 @@ const createLogger = () => {
           frequency: 'daily',
           size: '10m',
           mkdir: true,
+          limit: { count: 7 }, // Retain last 7 log files
         },
         level: process.env.LOG_LEVEL || 'info',
       }

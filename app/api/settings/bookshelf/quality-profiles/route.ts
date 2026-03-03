@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { BookshelfService } from '@/lib/services/bookshelf.service'
 import { logger } from '@/lib/utils/logger'
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/settings/bookshelf/quality-profiles - Get quality profile configurations
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/settings/bookshelf/quality-profiles - Update quality profile configuration
  */
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
     const body = await request.json()
@@ -68,7 +69,7 @@ export async function PATCH(request: NextRequest) {
 /**
  * POST /api/settings/bookshelf/quality-profiles - Reorder quality profiles
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
     const body = await request.json()
@@ -97,3 +98,7 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)
+export const PATCH = withLogging(patchHandler)
+export const POST = withLogging(postHandler)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAuth, handleAuthError, AuthError } from '@/lib/middleware/auth.middleware'
 import { db, users } from '@/lib/db'
 import { eq } from 'drizzle-orm'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 /**
  * PATCH /api/user/preferences - Update user preferences
  */
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   try {
     const payload = await requireAuth(request)
     const body = await request.json()
@@ -50,3 +51,5 @@ export async function PATCH(request: NextRequest) {
     )
   }
 }
+
+export const PATCH = withLogging(patchHandler)

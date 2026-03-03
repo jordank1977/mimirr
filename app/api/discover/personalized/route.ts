@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAuth, AuthError, handleAuthError } from '@/lib/middleware/auth.middleware'
 import * as RecommendationService from '@/lib/services/recommendation.service'
 import { BookService } from '@/lib/services/book.service'
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
  * GET /api/discover/personalized - Get personalized book recommendations
  * Returns three sections: Popular Books for You, New Books for You, Authors You Might Enjoy
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const payload = await requireAuth(request)
 
@@ -97,3 +98,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)

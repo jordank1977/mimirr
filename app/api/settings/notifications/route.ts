@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { NotificationService } from '@/lib/services/notification.service'
 import { logger } from '@/lib/utils/logger'
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/settings/notifications - Get notification settings (admin only)
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
 
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/settings/notifications - Save notification settings (admin only)
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
 
@@ -112,3 +113,6 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)
+export const POST = withLogging(postHandler)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { bookshelfSettingsSchema } from '@/lib/utils/validation'
 import { BookshelfService } from '@/lib/services/bookshelf.service'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 /**
  * POST /api/settings/bookshelf/test - Test Bookshelf connection without saving
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await requireAdmin(request)
     const body = await request.json()
@@ -78,3 +79,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const POST = withLogging(postHandler)

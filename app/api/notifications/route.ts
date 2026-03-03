@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAuth, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { NotificationService } from '@/lib/services/notification.service'
 import { logger } from '@/lib/utils/logger'
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/notifications - Get user's notifications
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
 
@@ -27,3 +28,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)

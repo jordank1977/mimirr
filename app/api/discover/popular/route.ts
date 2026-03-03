@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAuth, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { BookService } from '@/lib/services/book.service'
 import { logger } from '@/lib/utils/logger'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     // Require authentication
     await requireAuth(request)
@@ -28,3 +29,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)

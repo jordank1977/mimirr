@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAuth } from '@/lib/middleware/auth.middleware'
 import { db, users } from '@/lib/db'
 import { eq, and, or } from 'drizzle-orm'
@@ -15,7 +16,7 @@ const updateProfileSchema = z.object({
   newPassword: z.string().min(6).max(100).optional(),
 })
 
-export async function PATCH(request: NextRequest) {
+async function patchHandler(request: NextRequest) {
   try {
     const authResult = await requireAuth(request)
     if (authResult instanceof NextResponse) {
@@ -119,3 +120,5 @@ export async function PATCH(request: NextRequest) {
     )
   }
 }
+
+export const PATCH = withLogging(patchHandler)

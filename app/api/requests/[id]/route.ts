@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import {
   requireAuth,
   requireAdmin,
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/requests/[id] - Get a specific request
  */
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -54,7 +55,7 @@ export async function GET(
 /**
  * PATCH /api/requests/[id] - Update a request (admin only)
  */
-export async function PATCH(
+async function patchHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -95,7 +96,7 @@ export async function PATCH(
 /**
  * DELETE /api/requests/[id] - Delete a request
  */
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -197,3 +198,7 @@ export async function DELETE(
     )
   }
 }
+
+export const GET = withLogging(getHandler)
+export const PATCH = withLogging(patchHandler)
+export const DELETE = withLogging(deleteHandler)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAuth, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { BookshelfService } from '@/lib/services/bookshelf.service'
 import { logger } from '@/lib/utils/logger'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
  * GET /api/settings/quality-profiles - Get enabled quality profiles in order
  * This endpoint returns only enabled profiles sorted by order for use in request forms
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     // Require authentication
     await requireAuth(request)
@@ -30,3 +31,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export const GET = withLogging(getHandler)

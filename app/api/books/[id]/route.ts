@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAuth, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { BookService } from '@/lib/services/book.service'
 import { BookshelfService } from '@/lib/services/bookshelf.service'
@@ -8,7 +9,7 @@ import { and, eq } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -97,3 +98,5 @@ export async function GET(
     )
   }
 }
+
+export const GET = withLogging(getHandler)
