@@ -44,6 +44,40 @@ export default function MainLayout({
     checkAuth()
   }, [router])
 
+  // Automatic Polling for Book Requests
+  useEffect(() => {
+    if (!user) return
+
+    // Function to trigger polling
+    const pollRequests = async () => {
+      try {
+        const response = await fetch('/api/requests/poll', {
+          method: 'POST'
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.updated > 0) {
+            console.info(`[Mimirr] Polled requests: ${data.checked} checked, ${data.updated} updated.`)
+            // We could potentially trigger a global state refresh here if needed,
+            // but the status is mostly displayed on specific pages that fetch their own data.
+          }
+        }
+      } catch (error) {
+        // Silently fail polling to not disturb the user experience
+        console.error('[Mimirr] Error polling requests:', error)
+      }
+    }
+
+    // Run immediately on mount
+    pollRequests()
+
+    // Set up interval (every 60 seconds)
+    const interval = setInterval(pollRequests, 60000)
+
+    return () => clearInterval(interval)
+  }, [user])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

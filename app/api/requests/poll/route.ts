@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     // Require authentication (any user can trigger polling)
     const user = await requireAuth(request)
 
-    logger.info('Manual poll triggered', { userId: user.userId, role: user.role })
+    logger.debug('Polling triggered', { userId: user.userId, role: user.role })
 
     // Poll all processing requests
     const result = await RequestService.pollProcessingRequests()
