@@ -66,13 +66,17 @@ export class BookinfoService {
         throw new Error(`Bookinfo API error: ${response.statusText}`)
       }
 
-      const data: BookinfoBulkResponse = await response.json()
+      const data = await response.json()
 
-      if (!data.Works || data.Works.length === 0) {
+      // The individual /work/:id endpoint returns { Work: {...}, Authors: [...] }
+      // The bulk endpoint returns { Works: [...], Authors: [...] }
+      const work = data.Work || (data.Works && data.Works[0])
+      
+      if (!work) {
         return null
       }
 
-      return this.transformToBook(data.Works[0], data.Authors)
+      return this.transformToBook(work, data.Authors || [])
     } catch (error) {
       logger.error('Failed to get book by ID', { error, workId })
       throw error

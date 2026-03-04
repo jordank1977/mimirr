@@ -181,15 +181,17 @@ export class BookService {
 
         // Fetch missing books from API
         const fetchedBooks = await Promise.all(
-          cacheMisses.map(id =>
-            BookinfoService.getBookById(id).catch(error => {
+          cacheMisses.map(async (id) => {
+            try {
+              return await BookinfoService.getBookById(id)
+            } catch (error) {
               logger.warn('Failed to fetch individual book during bulk operation', {
                 error,
                 bookId: id,
               })
               return null
-            })
-          )
+            }
+          })
         )
 
         // Cache and add to results
@@ -201,7 +203,14 @@ export class BookService {
             await this.cacheBook(book)
             results.set(id, book)
           } else {
-            results.set(id, null)
+            // Fallback: If API fails or returns null, use the stale/0-rating cached version if available
+            const cachedBook = cached.find(c => c.id === id)
+            if (cachedBook && cachedBook.metadata) {
+              logger.debug('Using stale/0-rating cache as fallback', { bookId: id })
+              results.set(id, JSON.parse(cachedBook.metadata) as Book)
+            } else {
+              results.set(id, null)
+            }
           }
         }
       }
@@ -240,9 +249,27 @@ export class BookService {
 
       // Fetch from Bookinfo API
       logger.debug('Cache miss, fetching from API', { bookId: id })
-      const book = await BookinfoService.getBookById(id)
+      let book: Book | null = null
+      
+      try {
+        book = await BookinfoService.getBookById(id)
+      } catch (error) {
+        logger.error('Failed to fetch book from API, attempting fallback', { error, bookId: id })
+      }
 
       if (!book) {
+        // Fallback: Check if we have an expired/0-rating cached version
+        const fallbackCache = await db
+          .select()
+          .from(bookCache)
+          .where(eq(bookCache.id, id))
+          .limit(1)
+
+        if (fallbackCache.length > 0 && fallbackCache[0].metadata) {
+          logger.debug('Using stale/0-rating cache as fallback', { bookId: id })
+          return JSON.parse(fallbackCache[0].metadata) as Book
+        }
+        
         return null
       }
 
