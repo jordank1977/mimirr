@@ -106,12 +106,6 @@ export class BookService {
       }
       const book = JSON.parse(cached.metadata) as Book
 
-      // If the book has no rating, treat it as a cache miss to force a re-fetch with the new rating logic
-      if (!book.rating || book.rating === 0) {
-        logger.debug('Forcing cache refresh for 0-rating book', { bookId })
-        return null
-      }
-
       logger.debug('Book retrieved from cache', { bookId })
       return book
     } catch (error) {
@@ -163,13 +157,8 @@ export class BookService {
       for (const cachedBook of cached) {
         if (this.isCacheValid(cachedBook) && cachedBook.metadata) {
           const book = JSON.parse(cachedBook.metadata) as Book
-          // If the book has no rating, treat it as a cache miss to force a re-fetch with the new rating logic
-          if (book.rating && book.rating > 0) {
-            results.set(cachedBook.id, book)
-            cacheHits.add(cachedBook.id)
-          } else {
-            logger.debug('Forcing cache refresh for 0-rating book', { bookId: cachedBook.id })
-          }
+          results.set(cachedBook.id, book)
+          cacheHits.add(cachedBook.id)
         }
       }
 
