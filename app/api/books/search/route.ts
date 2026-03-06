@@ -51,14 +51,24 @@ async function handler(request: NextRequest) {
     if (bookshelfConfig) {
       // Step 1: Run Bookshelf lookup
       const bookshelfResults = await BookshelfService.searchBooks(bookshelfConfig, query);
+
+      // Step 2: Fetch Mimirr's own search results to find the correct Book IDs for metadata enrichment.
+      // Bookshelf provides Work IDs (e.g., 2014321), but we need Book IDs (e.g., 32186357) for detailed metadata.
+      const hardcoverSearchResults = await BookService.searchBooks(query, limit).catch(() => []);
+      const hardcoverSearchMap = new Map(hardcoverSearchResults.map(h => [h.title.toLowerCase(), h]));
       
-      // Step 2: Extract IDs and fetch rich metadata from Hardcover/Cache for these specific books
-      const bookshelfIds = bookshelfResults.map((b: any) => b.foreignBookId).filter(Boolean);
-      const hardcoverMap = await BookService.getBooksByIds(bookshelfIds);
+      // Extract the correct IDs for the books found by Bookshelf
+      const bookIdsToFetch = bookshelfResults.map((b: any) => {
+        const match = hardcoverSearchMap.get(b.title.toLowerCase());
+        return match?.id;
+      }).filter(Boolean) as string[];
+
+      const hardcoverMap = await BookService.getBooksByIds(bookIdsToFetch);
       
       // Step 3: Map Bookshelf results to Mimirr Book format, merging in Hardcover metadata
       books = bookshelfResults.map((b: any) => {
-        const hardcoverBook = hardcoverMap.get(b.foreignBookId);
+        const hardcoverSearchMatch = hardcoverSearchMap.get(b.title.toLowerCase());
+        const hardcoverBook = hardcoverSearchMatch ? (hardcoverMap.get(hardcoverSearchMatch.id) || null) : null;
         
         // Author Mapping: Prioritize explicit authorName, fallback to authorTitle, then Hardcover
         let authorName = b.author?.authorName || b.authorName;
