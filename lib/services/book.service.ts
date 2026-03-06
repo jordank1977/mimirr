@@ -144,11 +144,15 @@ export class BookService {
     }
 
     try {
+      // TEMP: Treat everything as a cache miss to verify fresh metadata fetch
+      const cached: any[] = []
+      /*
       // Fetch all from cache in one query
       const cached = await db
         .select()
         .from(bookCache)
         .where(inArray(bookCache.id, ids))
+      */
 
       // Process cached results
       const cacheHits = new Set<string>()
@@ -235,11 +239,13 @@ export class BookService {
    */
   static async getBookById(id: string): Promise<Book | null> {
     try {
-      // Check cache first
+      // TEMP: Skip cache to verify fresh metadata fetch
+      /*
       const cached = await this.getFromCache(id)
       if (cached) {
         return cached
       }
+      */
 
       // Fetch from Bookinfo API
       logger.debug('Cache miss, fetching from API', { bookId: id })
