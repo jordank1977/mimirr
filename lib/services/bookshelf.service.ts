@@ -350,30 +350,15 @@ export class BookshelfService {
     }
   ): Promise<{ success: boolean; bookshelfId?: number; foreignBookId?: string; error?: string }> {
     try {
-      // Step 1: Lookup the AUTHOR to get foreignAuthorId
-      const authorResults = await this.lookupAuthor(config, bookData.author)
-
-      if (authorResults.length === 0) {
-        logger.error('Author not found in Bookshelf metadata', {
-          author: bookData.author,
-        })
-        return {
-          success: false,
-          error: 'Author not found in metadata provider',
-        }
-      }
-
-      let authorMetadata = authorResults[0]
-      logger.debug('Initial author lookup successful', {
-        authorName: authorMetadata.authorName,
-        foreignAuthorId: authorMetadata.foreignAuthorId,
-      })
-
-      // Step 2: Lookup the specific BOOK to get its foreignBookId
       const baseUrl = config.url.replace(/\/$/, '')
+
+      // Step 1: Lookup the specific BOOK first to get its foreignBookId AND foreignAuthorId
+      // This is much more accurate than an isolated author search, as book titles + ISBNs are unique.
       
       // Use ISBN if available, otherwise use "Title Author" for much better accuracy and speed
-      const bookSearchQuery = bookData.isbn || `${bookData.title} ${bookData.author}`
+      // Normalize whitespace in the search query to avoid issues with double spaces
+      const normalizedAuthorInput = bookData.author.replace(/\s+/g, ' ').trim()
+      const bookSearchQuery = bookData.isbn || `${bookData.title} ${normalizedAuthorInput}`
       const bookLookupUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(bookSearchQuery)}`
 
       logger.debug('Looking up book', { 
@@ -405,7 +390,7 @@ export class BookshelfService {
           author: bookData.author
         })
 
-        const fallbackQuery = `${bookData.title} ${bookData.author}`
+        const fallbackQuery = `${bookData.title} ${normalizedAuthorInput}`
         const fallbackUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(fallbackQuery)}`
         const fallbackResponse = await fetch(fallbackUrl, {
           headers: {
@@ -424,11 +409,11 @@ export class BookshelfService {
         }
       }
 
-      // Helper function to normalize titles for matching
-      const normalizeTitle = (title: string): string => {
-        return title
+      // Helper function to normalize text for matching (titles, authors)
+      const normalizeText = (text: string): string => {
+        return text
           .toLowerCase()
-          .split(':')[0] // Remove subtitle (text after colon)
+          .split(':')[0] // Remove subtitles
           .trim()
           .replace(/[^\w\s]/g, '') // Remove special characters
           .replace(/\s+/g, ' ') // Normalize whitespace
@@ -436,19 +421,29 @@ export class BookshelfService {
 
       // Try multiple matching strategies
       const searchTitle = bookData.title
-      const normalizedSearch = normalizeTitle(searchTitle)
-      const requestedAuthor = bookData.author.toLowerCase().trim()
+      const normalizedSearchTitle = normalizeText(searchTitle)
+      const normalizedSearchAuthor = normalizeText(bookData.author)
 
       const bookMatch = bookResults.find((book: any) => {
         const bookTitle = book.title
-        const normalizedBook = normalizeTitle(bookTitle)
+        const normalizedBookTitle = normalizeText(bookTitle)
         
         // CRITICAL: Ensure the author matches too!
         // Bookshelf/Readarr returns author info in author.authorName or authorName
-        const resultAuthor = (book.author?.authorName || book.authorName || '').toLowerCase().trim()
+        const resultAuthorName = (book.author?.authorName || book.authorName || '')
+        const normalizedResultAuthor = normalizeText(resultAuthorName)
         
-        const authorMatches = resultAuthor.includes(requestedAuthor) || 
-                             requestedAuthor.includes(resultAuthor)
+        // Stricter author matching: Normalized names should contain each other
+        // This prevents "Sara Ackerman" matching "Sara Holly Ackerman" if they aren't actually the same
+        // as "sara holly ackerman" contains "sara ackerman" if the middle name is missing.
+        // Wait, "sara holly ackerman" DOES contain "sara ackerman" if we ignore the "holly".
+        // Actually, if we normalize "sara holly ackerman" to "sara holly ackerman"
+        // and "sara ackerman" to "sara ackerman".
+        // "sara holly ackerman".includes("sara ackerman") is still FALSE.
+        // But "sara holly ackerman" contains "sara" and "ackerman".
+        
+        const authorMatches = normalizedResultAuthor.includes(normalizedSearchAuthor) || 
+                             normalizedSearchAuthor.includes(normalizedResultAuthor)
 
         if (!authorMatches) {
           return false
@@ -460,7 +455,7 @@ export class BookshelfService {
         }
 
         // Strategy 2: Exact match on normalized titles (without subtitles)
-        if (normalizedBook === normalizedSearch) {
+        if (normalizedBookTitle === normalizedSearchTitle) {
           return true
         }
 
@@ -474,8 +469,8 @@ export class BookshelfService {
 
         // Strategy 4: Normalized titles contain each other
         if (
-          normalizedBook.includes(normalizedSearch) ||
-          normalizedSearch.includes(normalizedBook)
+          normalizedBookTitle.includes(normalizedSearchTitle) ||
+          normalizedSearchTitle.includes(normalizedBookTitle)
         ) {
           return true
         }
@@ -486,7 +481,7 @@ export class BookshelfService {
       if (!bookMatch) {
         logger.error('Book not found', {
           title: bookData.title,
-          normalizedTitle: normalizedSearch,
+          normalizedTitle: normalizedSearchTitle,
           searchedTitles: bookResults.map((b: any) => b.title).slice(0, 5)
         })
         return {
@@ -502,22 +497,32 @@ export class BookshelfService {
         foreignAuthorIdInBookMatch: bookMatch.author?.foreignAuthorId || bookMatch.foreignAuthorId
       })
 
-      // CRITICAL FIX: Use the foreignAuthorId associated with the found book!
+      // Step 2: Use the exact author metadata from the matched book
       // This ensures we add the correct author profile that actually contains this book.
-      const bookAuthorId = bookMatch.author?.foreignAuthorId || bookMatch.foreignAuthorId
-      if (bookAuthorId && bookAuthorId !== authorMetadata.foreignAuthorId) {
-        logger.info('Updating author metadata to match book author ID', {
-          oldId: authorMetadata.foreignAuthorId,
-          newId: bookAuthorId,
-          authorName: bookMatch.author?.authorName || bookMatch.authorName || authorMetadata.authorName
-        })
-        
-        authorMetadata = {
-          ...authorMetadata,
-          foreignAuthorId: bookAuthorId,
-          authorName: bookMatch.author?.authorName || bookMatch.authorName || authorMetadata.authorName
-        }
+      let authorMetadata = {
+        foreignAuthorId: bookMatch.author?.foreignAuthorId || bookMatch.foreignAuthorId,
+        authorName: bookMatch.author?.authorName || bookMatch.authorName
       }
+
+      if (!authorMetadata.foreignAuthorId) {
+        // Fallback: If the book match didn't have author ID, we MUST lookup the author
+        const authorResults = await this.lookupAuthor(config, bookData.author)
+        if (authorResults.length === 0) {
+          logger.error('Author not found in Bookshelf metadata after book match', {
+            author: bookData.author,
+          })
+          return {
+            success: false,
+            error: 'Author not found in metadata provider',
+          }
+        }
+        authorMetadata = authorResults[0]
+      }
+
+      logger.info('Determined correct author metadata for addition', {
+        authorName: authorMetadata.authorName,
+        foreignAuthorId: authorMetadata.foreignAuthorId,
+      })
 
       // Step 3: Get root folder
       const rootFolders = await this.getRootFolders(config)
