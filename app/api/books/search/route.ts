@@ -49,19 +49,14 @@ async function handler(request: NextRequest) {
     let books: Book[] = []
 
     if (bookshelfConfig) {
-      // Hijack & Merge: Run Bookshelf lookup and Hardcover search in parallel
-      const [bookshelfResults, hardcoverResults] = await Promise.all([
-        BookshelfService.searchBooks(bookshelfConfig, query),
-        BookService.searchBooks(query, limit).catch(err => {
-          logger.error('Hardcover parallel search failed', { err });
-          return [] as Book[];
-        })
-      ]);
-
-      // Create a map of hardcover results for quick lookup/merging
-      const hardcoverMap = new Map(hardcoverResults.map(h => [h.id, h]));
+      // Step 1: Run Bookshelf lookup
+      const bookshelfResults = await BookshelfService.searchBooks(bookshelfConfig, query);
       
-      // Map Bookshelf results to Mimirr Book format, merging in Hardcover metadata where Bookshelf is sparse
+      // Step 2: Extract IDs and fetch rich metadata from Hardcover/Cache for these specific books
+      const bookshelfIds = bookshelfResults.map((b: any) => b.foreignBookId).filter(Boolean);
+      const hardcoverMap = await BookService.getBooksByIds(bookshelfIds);
+      
+      // Step 3: Map Bookshelf results to Mimirr Book format, merging in Hardcover metadata
       books = bookshelfResults.map((b: any) => {
         const hardcoverBook = hardcoverMap.get(b.foreignBookId);
         
@@ -90,23 +85,27 @@ async function handler(request: NextRequest) {
             .join(' ');
         }
         
-        // Final fallback for author name
-        if (!authorName || authorName === 'Unknown Author') {
-          authorName = hardcoverBook?.author || 'Unknown Author';
+        // Use Hardcover author if it's more complete or as fallback
+        if (!authorName || authorName === 'Unknown Author' || authorName.length < 3) {
+          authorName = hardcoverBook?.author || authorName || 'Unknown Author';
         }
 
-        // Images: prioritize remoteCover (absolute URL).
-        // If missing, try Hardcover.
-        // If still missing, turn local proxy paths into absolute URLs.
-        let coverImage = b.remoteCover || hardcoverBook?.coverImage;
+        // Images: PRIORITIZE Hardcover image (most reliable for frontend).
+        // Fallback to remoteCover (Bookshelf absolute URL), then proxy.
+        let coverImage = hardcoverBook?.coverImage || b.remoteCover;
         
         if (!coverImage && b.images && b.images.length > 0) {
-          const proxyPath = b.images.find((img: any) => img.coverType === 'cover')?.url || b.images[0].url;
-          if (proxyPath && proxyPath.startsWith('/')) {
-            const joinChar = proxyPath.includes('?') ? '&' : '?';
-            coverImage = `${bookshelfUrl.replace(/\/$/, '')}${proxyPath}${joinChar}apikey=${bookshelfApiKey}`;
-          } else {
-            coverImage = proxyPath;
+          // Bookshelf sometimes returns the full URL in the 'url' field of an image object
+          const coverImg = b.images.find((img: any) => img.coverType === 'cover') || b.images[0];
+          const path = coverImg.url;
+
+          if (path) {
+            if (path.startsWith('http')) {
+              coverImage = path;
+            } else if (path.startsWith('/')) {
+              const joinChar = path.includes('?') ? '&' : '?';
+              coverImage = `${bookshelfUrl.replace(/\/$/, '')}${path}${joinChar}apikey=${bookshelfApiKey}`;
+            }
           }
         }
 

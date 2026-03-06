@@ -1,22 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Image optimization
+  // Image optimization - Allow images from any source to support Bookshelf's remote and proxy URLs
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'm.media-amazon.com',
-        pathname: '/images/S/compressed.photo.goodreads.com/**',
+        hostname: '**',
       },
       {
-        protocol: 'https',
-        hostname: 'images.gr-assets.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 's.gr-assets.com',
-        pathname: '/**',
+        protocol: 'http',
+        hostname: '**',
       },
     ],
     formats: ['image/avif', 'image/webp'], // Modern formats for better performance
