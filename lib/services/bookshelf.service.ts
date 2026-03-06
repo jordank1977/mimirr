@@ -846,44 +846,23 @@ export class BookshelfService {
         }
 
         if (!bookFound) {
-          const lookupEditions = bookMatch.editions || [];
-          let editionsToPayload: any[] = [];
+          logger.info('Book missing from author library, explicitly adding book', {
+            title: bookMatch.title,
+            foreignBookId: bookMatch.foreignBookId,
+            authorId: data.id
+          })
 
-          if (lookupEditions.length === 0) {
-            logger.info('Book missing from author library and has no editions in metadata. Constructing synthetic edition to avoid Readarr 500 error.', {
-              title: bookMatch.title,
-              foreignBookId: bookMatch.foreignBookId,
-            });
-            
-            // Construct a perfect synthetic edition to satisfy Readarr's strict internal validation
-            // (AddSkyhookData calls .Single(x => x.Monitored) and requires nested links/formats/images arrays)
-            editionsToPayload = [{
-              foreignEditionId: `synth-${bookMatch.foreignBookId}`,
-              title: bookMatch.title,
-              monitored: true,
-              manualAdd: true,
-              links: [],
-              formats: [],
-              images: []
-            }];
-          } else {
-            logger.info('Book missing from author library, explicitly adding book', {
-              title: bookMatch.title,
-              foreignBookId: bookMatch.foreignBookId,
-              authorId: data.id
-            })
-
-            // Construct BookResource payload mimicking Readarr's getNewBook.js but ensuring
-            // exactly one monitored edition is present.
-            editionsToPayload = lookupEditions.map((e: any, index: number) => ({
-              ...e,
-              monitored: index === 0,
-              // Ensure required arrays exist even for real editions to prevent mapping crashes
-              links: e.links || [],
-              formats: e.formats || [],
-              images: e.images || []
-            }));
-          }
+          // Bookshelf's book/lookup results use top-level foreignEditionId instead of an editions array.
+          // We must construct the editions payload using this ID to match Bookshelf's expectations.
+          const editionsToPayload = [{
+            foreignEditionId: bookMatch.foreignEditionId,
+            title: bookMatch.title,
+            monitored: true,
+            // Ensure required arrays exist to prevent mapping crashes in Bookshelf
+            links: bookMatch.links || [],
+            formats: bookMatch.formats || [],
+            images: bookMatch.images || []
+          }];
 
           const bookToAdd = {
             ...bookMatch,
