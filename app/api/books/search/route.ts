@@ -160,64 +160,42 @@ async function handler(request: NextRequest) {
     )
 
     // Check each book in Bookshelf library (if configured)
-    const booksWithStatus = await Promise.all(
-      books.map(async (book) => {
-        const existingRequest = requestMap.get(book.id)
+    const booksWithStatus = books.map((book) => {
+      const existingRequest = requestMap.get(book.id)
 
-        // If already requested, use that status
-        if (existingRequest) {
-          return {
-            ...book,
-            requestStatus: existingRequest.status,
-            requestId: existingRequest.id,
+      // If already requested, use that status
+      if (existingRequest) {
+        return {
+          ...book,
+          requestStatus: existingRequest.status,
+          requestId: existingRequest.id,
+        }
+      }
+
+      // Otherwise, check Bookshelf metadata for library status
+      if (bookshelfConfig && book.metadata) {
+        const isGrabbed = book.metadata.grabbed === true
+        const isAdded = book.metadata.authorId > 0 // If authorId > 0, it means it's already in the library
+
+        if (isAdded) {
+          // If it's added but we don't have statistics (common in lookup results), 
+          // we can at least mark it as 'available' or 'processing' if grabbed.
+          if (isGrabbed) {
+            return {
+              ...book,
+              requestStatus: 'processing' as const
+            }
+          } else {
+            return {
+              ...book,
+              requestStatus: 'available' as const
+            }
           }
         }
+      }
 
-        // Otherwise, check Bookshelf library
-        if (bookshelfConfig) {
-          try {
-            // Bookshelf search results already contain library status!
-            if (book.metadata && book.metadata.statistics) {
-              const fileCount = book.metadata.statistics.bookFileCount || 0
-              const isGrabbed = book.metadata.grabbed === true
-
-              if (fileCount > 0) {
-                return {
-                  ...book,
-                  requestStatus: 'available' as const,
-                  availableFormat: book.metadata.quality?.quality?.name
-                }
-              } else if (isGrabbed) {
-                return {
-                  ...book,
-                  requestStatus: 'processing' as const
-                }
-              }
-            }
-
-            // Fallback to library check if metadata doesn't have status
-            const libraryStatus = await BookshelfService.checkBookInLibrary(
-              bookshelfConfig,
-              book.title,
-              book.author
-            )
-
-            if (libraryStatus.exists && libraryStatus.status === 'available') {
-              return {
-                ...book,
-                requestStatus: 'available' as const,
-                availableFormat: libraryStatus.format,
-              }
-            }
-          } catch (error) {
-            // Silently fail - don't block search if Bookshelf check fails
-            logger.error('Failed to check book in Bookshelf', { bookId: book.id, error })
-          }
-        }
-
-        return book
-      })
-    )
+      return book
+    })
 
     return NextResponse.json({ books: booksWithStatus })
   } catch (error) {
