@@ -168,34 +168,39 @@ export class BookService {
       if (cacheMisses.length > 0) {
         logger.debug(`Cache miss for ${cacheMisses.length} books, fetching from API`)
 
-        // Fetch missing books from API
-        const fetchedBooks = await Promise.all(
-          cacheMisses.map(async (id) => {
-            try {
-              return await BookinfoService.getBookById(id)
-            } catch (error) {
-              logger.warn('Failed to fetch individual book during bulk operation', {
-                error,
-                bookId: id,
-              })
-              return null
+        // Optimized: Use bulk fetching for all cache misses in one single call
+        try {
+          // Note: BookinfoService.getBulkBooks expects number IDs
+          const numericIds = cacheMisses.map(id => parseInt(id)).filter(id => !isNaN(id))
+          const fetchedBooks = await BookinfoService.getBulkBooks(numericIds)
+
+          // Map of id -> book for easy lookup
+          const fetchedMap = new Map(fetchedBooks.map(b => [b.id, b]))
+
+          // Cache and add to results
+          for (const id of cacheMisses) {
+            const book = fetchedMap.get(id)
+
+            if (book) {
+              await this.cacheBook(book)
+              results.set(id, book)
+            } else {
+              // Fallback: If API fails or returns null, use the stale/0-rating cached version if available
+              const cachedBook = cached.find(c => c.id === id)
+              if (cachedBook && cachedBook.metadata) {
+                logger.debug('Using stale/0-rating cache as fallback', { bookId: id })
+                results.set(id, JSON.parse(cachedBook.metadata) as Book)
+              } else {
+                results.set(id, null)
+              }
             }
-          })
-        )
-
-        // Cache and add to results
-        for (let i = 0; i < cacheMisses.length; i++) {
-          const book = fetchedBooks[i]
-          const id = cacheMisses[i]
-
-          if (book) {
-            await this.cacheBook(book)
-            results.set(id, book)
-          } else {
-            // Fallback: If API fails or returns null, use the stale/0-rating cached version if available
+          }
+        } catch (error) {
+          logger.error('Failed to fetch bulk books during metadata enrichment', { error, cacheMisses })
+          // Fallback for all misses
+          for (const id of cacheMisses) {
             const cachedBook = cached.find(c => c.id === id)
             if (cachedBook && cachedBook.metadata) {
-              logger.debug('Using stale/0-rating cache as fallback', { bookId: id })
               results.set(id, JSON.parse(cachedBook.metadata) as Book)
             } else {
               results.set(id, null)
