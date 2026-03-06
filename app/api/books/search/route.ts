@@ -49,53 +49,98 @@ async function handler(request: NextRequest) {
     let books: Book[] = []
 
     if (bookshelfConfig) {
-      // Hijack: Search via Bookshelf directly
-      const bookshelfResults = await BookshelfService.searchBooks(bookshelfConfig, query)
+      // Hijack & Merge: Run Bookshelf lookup and Hardcover search in parallel
+      const [bookshelfResults, hardcoverResults] = await Promise.all([
+        BookshelfService.searchBooks(bookshelfConfig, query),
+        BookService.searchBooks(query, limit).catch(err => {
+          logger.error('Hardcover parallel search failed', { err });
+          return [] as Book[];
+        })
+      ]);
+
+      // Create a map of hardcover results for quick lookup/merging
+      const hardcoverMap = new Map(hardcoverResults.map(h => [h.id, h]));
       
-      // Map Bookshelf results to Mimirr Book format
+      // Map Bookshelf results to Mimirr Book format, merging in Hardcover metadata where Bookshelf is sparse
       books = bookshelfResults.map((b: any) => {
-        // Bookshelf's lookup returns author info differently than the library.
-        // We prioritize explicit authorName, then fallback to parsing authorTitle if necessary.
-        let authorName = b.author?.authorName || b.authorName;
+        const hardcoverBook = hardcoverMap.get(b.foreignBookId);
         
+        // Author Mapping: Prioritize explicit authorName, fallback to authorTitle, then Hardcover
+        let authorName = b.author?.authorName || b.authorName;
+
         if (!authorName && b.authorTitle) {
-          // authorTitle is often "Last, First Title" or "First Last Title"
-          // We try to extract the author part by removing the book title from the end
           authorName = b.authorTitle.replace(b.title, '').trim();
         }
-        
-        if (!authorName) authorName = 'Unknown Author';
 
-        // Images: prioritize remoteCover (absolute URL) over local proxy paths
-        const coverImage = b.remoteCover || 
-                           b.images?.find((img: any) => img.coverType === 'cover')?.url || 
-                           b.images?.[0]?.url;
+        if (authorName) {
+          // Fix "last, first" formatting
+          if (authorName.includes(',')) {
+            const parts = authorName.split(',');
+            if (parts.length === 2) {
+              authorName = `${parts[1].trim()} ${parts[0].trim()}`;
+            }
+          }
+
+          // Capitalize each word properly
+          authorName = authorName
+            .toLowerCase()
+            .split(' ')
+            .filter((word: string) => word.length > 0)
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+        }
         
-        // Ratings: Bookshelf lookup might have ratings in b.ratings or hidden in editions
+        // Final fallback for author name
+        if (!authorName || authorName === 'Unknown Author') {
+          authorName = hardcoverBook?.author || 'Unknown Author';
+        }
+
+        // Images: prioritize remoteCover (absolute URL).
+        // If missing, try Hardcover.
+        // If still missing, turn local proxy paths into absolute URLs.
+        let coverImage = b.remoteCover || hardcoverBook?.coverImage;
+        
+        if (!coverImage && b.images && b.images.length > 0) {
+          const proxyPath = b.images.find((img: any) => img.coverType === 'cover')?.url || b.images[0].url;
+          if (proxyPath && proxyPath.startsWith('/')) {
+            const joinChar = proxyPath.includes('?') ? '&' : '?';
+            coverImage = `${bookshelfUrl.replace(/\/$/, '')}${proxyPath}${joinChar}apikey=${bookshelfApiKey}`;
+          } else {
+            coverImage = proxyPath;
+          }
+        }
+
+        // Ratings: Merge Bookshelf and Hardcover ratings
         let rating = b.ratings?.value || b.ratings?.averageRating || 0;
         if (rating === 0 && b.editions?.length > 0) {
-          // Scan editions for the best rating
           rating = Math.max(...b.editions.map((e: any) => e.ratings?.value || e.ratings?.averageRating || 0));
         }
+        if (rating === 0 && hardcoverBook?.rating) {
+          rating = hardcoverBook.rating;
+        }
+
+        // Genres & Description fallbacks
+        const genres = b.genres?.length > 0 ? b.genres : (hardcoverBook?.genres || []);
+        const description = b.overview || b.description || hardcoverBook?.description;
 
         return {
           id: b.foreignBookId,
           title: b.title,
           author: authorName,
-          authors: [authorName],
-          description: b.overview || b.description,
+          authors: hardcoverBook?.authors || [authorName],
+          description: description,
           coverImage: coverImage,
-          isbn: b.isbn,
-          publishedDate: b.releaseDate,
-          publisher: b.publisher,
+          isbn: b.isbn || hardcoverBook?.isbn,
+          publishedDate: b.releaseDate || hardcoverBook?.publishedDate,
+          publisher: b.publisher || hardcoverBook?.publisher,
           rating: rating,
-          genres: b.genres || [],
+          genres: genres,
           // Keep the raw bookshelf data for later if needed, though we store by foreignBookId
           metadata: b 
         } as Book
       })
 
-      // Also cache these results so they're available for detail pages
+      // Also cache these merged results
       for (const book of books) {
         await BookService.cacheBook(book)
       }
@@ -133,7 +178,6 @@ async function handler(request: NextRequest) {
         if (bookshelfConfig) {
           try {
             // Bookshelf search results already contain library status!
-            // We can optimize this by checking the raw metadata if available
             if (book.metadata && book.metadata.statistics) {
               const fileCount = book.metadata.statistics.bookFileCount || 0
               const isGrabbed = book.metadata.grabbed === true
@@ -142,7 +186,6 @@ async function handler(request: NextRequest) {
                 return {
                   ...book,
                   requestStatus: 'available' as const,
-                  // Format might be in the metadata if lookup provides it
                   availableFormat: book.metadata.quality?.quality?.name
                 }
               } else if (isGrabbed) {
