@@ -244,11 +244,22 @@ export class BookinfoService {
       return r > max ? r : max
     }, 0) || 0
 
+    // Robust Description Extraction: Scan all editions for the first valid description
+    const bestDescription = work.Books?.find(b => b.Description && b.Description.length > 10)?.Description 
+      || primaryBook?.Description;
+
+    // Robust Genre Extraction: Combine work-level genres with genres from ALL editions
+    const allGenres = new Set<string>(work.Genres || []);
+    work.Books?.forEach(book => {
+      book.Genres?.forEach(genre => allGenres.add(genre));
+    });
+    const uniqueGenres = Array.from(allGenres);
+
     return {
       id: work.ForeignId.toString(),
       title: work.Title,
       subtitle: work.FullTitle !== work.Title ? work.FullTitle : undefined,
-      description: primaryBook?.Description,
+      description: bestDescription,
       coverImage: primaryBook?.ImageUrl,
       author: primaryAuthor,
       authors: authorNames,
@@ -260,7 +271,7 @@ export class BookinfoService {
       rating: work.AverageRating || bestBookRating || 0,
       series: primarySeries ? authors.find(a => false)?.Name : undefined, // Series name not in work object
       seriesPosition: primarySeries?.SeriesPosition,
-      genres: work.Genres || [],
+      genres: uniqueGenres,
     }
   }
 }
