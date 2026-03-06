@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { BookService } from '@/lib/services/book.service'
-import { BookshelfService } from '@/lib/services/bookshelf.service'
+import { BookshelfService, BookshelfConfig } from '@/lib/services/bookshelf.service'
 import { logger } from '@/lib/utils/logger'
 import { db, requests, settings } from '@/lib/db'
+import { Book } from '@/types/bookinfo'
 import { eq } from 'drizzle-orm'
 import { withLogging } from '@/lib/middleware/logging.middleware'
 
@@ -25,20 +26,7 @@ async function handler(request: NextRequest) {
       )
     }
 
-    const books = await BookService.searchBooks(query, limit)
-
-    // Check if any of these books have been requested by the user
-    const userRequests = await db
-      .select()
-      .from(requests)
-      .where(eq(requests.userId, payload.userId))
-
-    // Create a map of bookId -> request for quick lookup
-    const requestMap = new Map(
-      userRequests.map(req => [req.bookId, req])
-    )
-
-    // Get Bookshelf config to check library
+    // Get Bookshelf config
     const urlSetting = await db
       .select()
       .from(settings)
@@ -54,6 +42,60 @@ async function handler(request: NextRequest) {
     const bookshelfUrl = urlSetting[0]?.value
     const bookshelfApiKey = apiKeySetting[0]?.value
     const hasBookshelf = bookshelfUrl && bookshelfApiKey
+    const bookshelfConfig: BookshelfConfig | null = hasBookshelf
+      ? { url: bookshelfUrl, apiKey: bookshelfApiKey }
+      : null
+
+    let books: Book[] = []
+
+    if (bookshelfConfig) {
+      // Hijack: Search via Bookshelf directly
+      const bookshelfResults = await BookshelfService.searchBooks(bookshelfConfig, query)
+      
+      // Map Bookshelf results to Mimirr Book format
+      books = bookshelfResults.map((b: any) => {
+        // Bookshelf's lookup returns author info differently than the library
+        const authorName = b.author?.authorName || b.authorName || 'Unknown Author'
+        const coverImage = b.images?.find((img: any) => img.coverType === 'cover')?.url || 
+                           b.images?.[0]?.url || 
+                           b.remoteCover
+        
+        return {
+          id: b.foreignBookId,
+          title: b.title,
+          author: authorName,
+          authors: [authorName],
+          description: b.overview || b.description,
+          coverImage: coverImage,
+          isbn: b.isbn,
+          publishedDate: b.releaseDate,
+          publisher: b.publisher,
+          rating: b.ratings?.value || b.ratings?.averageRating || 0,
+          genres: b.genres || [],
+          // Keep the raw bookshelf data for later if needed, though we store by foreignBookId
+          metadata: b 
+        } as Book
+      })
+
+      // Also cache these results so they're available for detail pages
+      for (const book of books) {
+        await BookService.cacheBook(book)
+      }
+    } else {
+      // Fallback to Mimirr's own search if Bookshelf isn't configured
+      books = await BookService.searchBooks(query, limit)
+    }
+
+    // Check if any of these books have been requested by the user
+    const userRequests = await db
+      .select()
+      .from(requests)
+      .where(eq(requests.userId, payload.userId))
+
+    // Create a map of bookId -> request for quick lookup
+    const requestMap = new Map(
+      userRequests.map(req => [req.bookId, req])
+    )
 
     // Check each book in Bookshelf library (if configured)
     const booksWithStatus = await Promise.all(
@@ -70,10 +112,32 @@ async function handler(request: NextRequest) {
         }
 
         // Otherwise, check Bookshelf library
-        if (hasBookshelf) {
+        if (bookshelfConfig) {
           try {
+            // Bookshelf search results already contain library status!
+            // We can optimize this by checking the raw metadata if available
+            if (book.metadata && book.metadata.statistics) {
+              const fileCount = book.metadata.statistics.bookFileCount || 0
+              const isGrabbed = book.metadata.grabbed === true
+
+              if (fileCount > 0) {
+                return {
+                  ...book,
+                  requestStatus: 'available' as const,
+                  // Format might be in the metadata if lookup provides it
+                  availableFormat: book.metadata.quality?.quality?.name
+                }
+              } else if (isGrabbed) {
+                return {
+                  ...book,
+                  requestStatus: 'processing' as const
+                }
+              }
+            }
+
+            // Fallback to library check if metadata doesn't have status
             const libraryStatus = await BookshelfService.checkBookInLibrary(
-              { url: bookshelfUrl, apiKey: bookshelfApiKey },
+              bookshelfConfig,
               book.title,
               book.author
             )

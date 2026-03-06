@@ -302,9 +302,88 @@ export class BookshelfService {
 
       const results = await response.json()
       logger.debug('Author lookup results', { count: results.length })
-      return results
+
+      // Helper function to normalize text for matching (titles, authors)
+      const normalizeText = (text: string): string => {
+        return text
+          .toLowerCase()
+          .split(':')[0] // Remove subtitles
+          .trim()
+          .replace(/[^\w\s]/g, '') // Remove special characters
+          .replace(/\s+/g, ' ') // Normalize whitespace
+      }
+
+      const normalizedSearchName = normalizeText(authorName)
+      const searchWords = normalizedSearchName.split(' ')
+
+      // Filter results to ensure strict author matching
+      // We want to avoid "Sara Ackerman" matching "Sara Holly Ackerman"
+      // So we require that the result contains exactly the same words as the search,
+      // or at least that the search isn't missing any words from the result (or vice-versa for middle names).
+      // Actually, middle names are tricky. If user searched "Sara Ackerman", they probably don't want "Sara Holly Ackerman".
+      const strictResults = results.filter((author: any) => {
+        const normalizedResultName = normalizeText(author.authorName || '')
+        const resultWords = normalizedResultName.split(' ')
+        
+        // Exact match of all words (ignoring order)
+        const wordsInResult = searchWords.every(word => resultWords.includes(word))
+        const wordsInSearch = resultWords.every(word => searchWords.includes(word))
+        
+        return wordsInResult && wordsInSearch
+      })
+
+      if (strictResults.length > 0) {
+        logger.info('Strict author lookup successful', {
+          originalCount: results.length,
+          strictCount: strictResults.length,
+          bestMatch: strictResults[0].authorName
+        })
+        return strictResults
+      }
+
+      // If no strict matches, return nothing to prevent wrong author addition
+      logger.warn('No strict author matches found', { 
+        authorName, 
+        foundAuthors: results.map((a: any) => a.authorName).slice(0, 3) 
+      })
+      return []
     } catch (error) {
       logger.error('Failed to lookup author in Bookshelf', { error, authorName })
+      return []
+    }
+  }
+
+  /**
+   * Search for books using Bookshelf's lookup endpoint
+   */
+  static async searchBooks(
+    config: BookshelfConfig,
+    term: string
+  ): Promise<any[]> {
+    try {
+      const baseUrl = config.url.replace(/\/$/, '')
+      const url = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(term)}`
+      logger.debug('Searching books via Bookshelf lookup', { url, term })
+
+      const response = await fetch(url, {
+        headers: {
+          'X-Api-Key': config.apiKey,
+        },
+      })
+
+      if (!response.ok) {
+        logger.error('Failed to search books via Bookshelf', {
+          status: response.status,
+          term,
+        })
+        return []
+      }
+
+      const results = await response.json()
+      logger.debug('Bookshelf search results', { count: results.length })
+      return results
+    } catch (error) {
+      logger.error('Failed to search books via Bookshelf', { error, term })
       return []
     }
   }
@@ -347,142 +426,145 @@ export class BookshelfService {
       isbn?: string
       monitored?: boolean
       qualityProfileId: number
+      metadata?: any // RAW payload from Bookshelf lookup
     }
   ): Promise<{ success: boolean; bookshelfId?: number; foreignBookId?: string; error?: string }> {
     try {
       const baseUrl = config.url.replace(/\/$/, '')
 
-      // Step 1: Lookup the specific BOOK first to get its foreignBookId AND foreignAuthorId
-      // This is much more accurate than an isolated author search, as book titles + ISBNs are unique.
-      
-      // Use ISBN if available, otherwise use "Title Author" for much better accuracy and speed
-      // Normalize whitespace in the search query to avoid issues with double spaces
-      const normalizedAuthorInput = bookData.author.replace(/\s+/g, ' ').trim()
-      const bookSearchQuery = bookData.isbn || `${bookData.title} ${normalizedAuthorInput}`
-      const bookLookupUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(bookSearchQuery)}`
+      let bookMatch = bookData.metadata
 
-      logger.debug('Looking up book', { 
-        url: bookLookupUrl, 
-        searchTerm: bookSearchQuery,
-        usingIsbn: !!bookData.isbn 
-      })
+      if (!bookMatch) {
+        // Step 1: Lookup the specific BOOK first to get its foreignBookId AND foreignAuthorId
+        // This is much more accurate than an isolated author search, as book titles + ISBNs are unique.
+        
+        // Use ISBN if available, otherwise use "Title Author" for much better accuracy and speed
+        // Normalize whitespace in the search query to avoid issues with double spaces
+        const normalizedAuthorInput = bookData.author.replace(/\s+/g, ' ').trim()
+        const bookSearchQuery = bookData.isbn || `${bookData.title} ${normalizedAuthorInput}`
+        const bookLookupUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(bookSearchQuery)}`
 
-      const bookResponse = await fetch(bookLookupUrl, {
-        headers: {
-          'X-Api-Key': config.apiKey,
-        },
-      })
-
-      if (!bookResponse.ok) {
-        return {
-          success: false,
-          error: 'Failed to lookup book',
-        }
-      }
-
-      let bookResults = await bookResponse.json()
-
-      // Fallback: If ISBN search returned no results, try searching by title + author
-      if (bookResults.length === 0 && bookData.isbn) {
-        logger.info('Book not found by ISBN, falling back to title + author search', {
-          isbn: bookData.isbn,
-          title: bookData.title,
-          author: bookData.author
+        logger.debug('Looking up book', { 
+          url: bookLookupUrl, 
+          searchTerm: bookSearchQuery,
+          usingIsbn: !!bookData.isbn 
         })
 
-        const fallbackQuery = `${bookData.title} ${normalizedAuthorInput}`
-        const fallbackUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(fallbackQuery)}`
-        const fallbackResponse = await fetch(fallbackUrl, {
+        const bookResponse = await fetch(bookLookupUrl, {
           headers: {
             'X-Api-Key': config.apiKey,
           },
         })
 
-        if (fallbackResponse.ok) {
-          bookResults = await fallbackResponse.json()
-          logger.debug('Title fallback search results', { count: bookResults.length })
-        } else {
-          logger.warn('Title fallback search failed', {
-            status: fallbackResponse.status,
-            title: bookData.title
+        if (!bookResponse.ok) {
+          return {
+            success: false,
+            error: 'Failed to lookup book',
+          }
+        }
+
+        let bookResults = await bookResponse.json()
+
+        // Fallback: If ISBN search returned no results, try searching by title + author
+        if (bookResults.length === 0 && bookData.isbn) {
+          logger.info('Book not found by ISBN, falling back to title + author search', {
+            isbn: bookData.isbn,
+            title: bookData.title,
+            author: bookData.author
           })
+
+          const fallbackQuery = `${bookData.title} ${normalizedAuthorInput}`
+          const fallbackUrl = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(fallbackQuery)}`
+          const fallbackResponse = await fetch(fallbackUrl, {
+            headers: {
+              'X-Api-Key': config.apiKey,
+            },
+          })
+
+          if (fallbackResponse.ok) {
+            bookResults = await fallbackResponse.json()
+            logger.debug('Title fallback search results', { count: bookResults.length })
+          } else {
+            logger.warn('Title fallback search failed', {
+              status: fallbackResponse.status,
+              title: bookData.title
+            })
+          }
         }
-      }
 
-      // Helper function to normalize text for matching (titles, authors)
-      const normalizeText = (text: string): string => {
-        return text
-          .toLowerCase()
-          .split(':')[0] // Remove subtitles
-          .trim()
-          .replace(/[^\w\s]/g, '') // Remove special characters
-          .replace(/\s+/g, ' ') // Normalize whitespace
-      }
+        // Helper function to normalize text for matching (titles, authors)
+        const normalizeText = (text: string): string => {
+          return text
+            .toLowerCase()
+            .split(':')[0] // Remove subtitles
+            .trim()
+            .replace(/[^\w\s]/g, '') // Remove special characters
+            .replace(/\s+/g, ' ') // Normalize whitespace
+        }
 
-      // Try multiple matching strategies
-      const searchTitle = bookData.title
-      const normalizedSearchTitle = normalizeText(searchTitle)
-      const normalizedSearchAuthor = normalizeText(bookData.author)
+        // Try multiple matching strategies
+        const searchTitle = bookData.title
+        const normalizedSearchTitle = normalizeText(searchTitle)
+        const normalizedSearchAuthor = normalizeText(bookData.author)
 
-      const bookMatch = bookResults.find((book: any) => {
-        const bookTitle = book.title
-        const normalizedBookTitle = normalizeText(bookTitle)
-        
-        // CRITICAL: Ensure the author matches too!
-        // Bookshelf/Readarr returns author info in author.authorName or authorName
-        const resultAuthorName = (book.author?.authorName || book.authorName || '')
-        const normalizedResultAuthor = normalizeText(resultAuthorName)
-        
-        // Stricter author matching: Normalized names should contain each other
-        // This prevents "Sara Ackerman" matching "Sara Holly Ackerman" if they aren't actually the same
-        // as "sara holly ackerman" contains "sara ackerman" if the middle name is missing.
-        // Wait, "sara holly ackerman" DOES contain "sara ackerman" if we ignore the "holly".
-        // Actually, if we normalize "sara holly ackerman" to "sara holly ackerman"
-        // and "sara ackerman" to "sara ackerman".
-        // "sara holly ackerman".includes("sara ackerman") is still FALSE.
-        // But "sara holly ackerman" contains "sara" and "ackerman".
-        
-        const authorMatches = normalizedResultAuthor.includes(normalizedSearchAuthor) || 
-                             normalizedSearchAuthor.includes(normalizedResultAuthor)
+        bookMatch = bookResults.find((book: any) => {
+          const bookTitle = book.title
+          const normalizedBookTitle = normalizeText(bookTitle)
+          
+          // CRITICAL: Ensure the author matches too!
+          // Bookshelf/Readarr returns author info in author.authorName or authorName
+          const resultAuthorName = (book.author?.authorName || book.authorName || '')
+          const normalizedResultAuthor = normalizeText(resultAuthorName)
+          
+          // Stricter author matching: Normalized names should contain each other
+          // We check if the search term words are all present in the result author name
+          const searchWords = normalizedSearchAuthor.split(' ')
+          const resultWords = normalizedResultAuthor.split(' ')
+          
+          const allWordsMatch = searchWords.every(word => resultWords.includes(word))
+          
+          // Also ensure the result isn't just a tiny subset of the search
+          const authorMatches = allWordsMatch || normalizedSearchAuthor.includes(normalizedResultAuthor)
 
-        if (!authorMatches) {
+          if (!authorMatches) {
+            return false
+          }
+
+          // Strategy 1: Exact match (case insensitive)
+          if (bookTitle.toLowerCase() === searchTitle.toLowerCase()) {
+            return true
+          }
+
+          // Strategy 2: Exact match on normalized titles (without subtitles)
+          if (normalizedBookTitle === normalizedSearchTitle) {
+            return true
+          }
+
+          // Strategy 3: Either title contains the other (bidirectional)
+          if (
+            bookTitle.toLowerCase().includes(searchTitle.toLowerCase()) ||
+            searchTitle.toLowerCase().includes(bookTitle.toLowerCase())
+          ) {
+            return true
+          }
+
+          // Strategy 4: Normalized titles contain each other
+          if (
+            normalizedBookTitle.includes(normalizedSearchTitle) ||
+            normalizedSearchTitle.includes(normalizedBookTitle)
+          ) {
+            return true
+          }
+
           return false
-        }
-
-        // Strategy 1: Exact match (case insensitive)
-        if (bookTitle.toLowerCase() === searchTitle.toLowerCase()) {
-          return true
-        }
-
-        // Strategy 2: Exact match on normalized titles (without subtitles)
-        if (normalizedBookTitle === normalizedSearchTitle) {
-          return true
-        }
-
-        // Strategy 3: Either title contains the other (bidirectional)
-        if (
-          bookTitle.toLowerCase().includes(searchTitle.toLowerCase()) ||
-          searchTitle.toLowerCase().includes(bookTitle.toLowerCase())
-        ) {
-          return true
-        }
-
-        // Strategy 4: Normalized titles contain each other
-        if (
-          normalizedBookTitle.includes(normalizedSearchTitle) ||
-          normalizedSearchTitle.includes(normalizedBookTitle)
-        ) {
-          return true
-        }
-
-        return false
-      })
+        })
+      }
 
       if (!bookMatch) {
-        logger.error('Book not found', {
+        logger.error('Book not found in Bookshelf metadata', {
           title: bookData.title,
-          normalizedTitle: normalizedSearchTitle,
-          searchedTitles: bookResults.map((b: any) => b.title).slice(0, 5)
+          author: bookData.author,
+          isbn: bookData.isbn
         })
         return {
           success: false,

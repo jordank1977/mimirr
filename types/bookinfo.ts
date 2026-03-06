@@ -88,6 +88,7 @@ export interface Book {
   series?: string
   seriesPosition?: number
   genres: string[]
+  metadata?: any
   requestStatus?: 'pending' | 'approved' | 'declined' | 'available' | 'processing'
   requestId?: number
   availableFormat?: string

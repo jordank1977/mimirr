@@ -92,6 +92,7 @@ async function postHandler(
             isbn: book.isbn13 || book.isbn,
             monitored: true,
             qualityProfileId: existingRequest.qualityProfileId,
+            metadata: book.metadata,
           }
         )
 
