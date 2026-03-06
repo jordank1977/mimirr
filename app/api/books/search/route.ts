@@ -54,12 +54,30 @@ async function handler(request: NextRequest) {
       
       // Map Bookshelf results to Mimirr Book format
       books = bookshelfResults.map((b: any) => {
-        // Bookshelf's lookup returns author info differently than the library
-        const authorName = b.author?.authorName || b.authorName || 'Unknown Author'
-        const coverImage = b.images?.find((img: any) => img.coverType === 'cover')?.url || 
-                           b.images?.[0]?.url || 
-                           b.remoteCover
+        // Bookshelf's lookup returns author info differently than the library.
+        // We prioritize explicit authorName, then fallback to parsing authorTitle if necessary.
+        let authorName = b.author?.authorName || b.authorName;
         
+        if (!authorName && b.authorTitle) {
+          // authorTitle is often "Last, First Title" or "First Last Title"
+          // We try to extract the author part by removing the book title from the end
+          authorName = b.authorTitle.replace(b.title, '').trim();
+        }
+        
+        if (!authorName) authorName = 'Unknown Author';
+
+        // Images: prioritize remoteCover (absolute URL) over local proxy paths
+        const coverImage = b.remoteCover || 
+                           b.images?.find((img: any) => img.coverType === 'cover')?.url || 
+                           b.images?.[0]?.url;
+        
+        // Ratings: Bookshelf lookup might have ratings in b.ratings or hidden in editions
+        let rating = b.ratings?.value || b.ratings?.averageRating || 0;
+        if (rating === 0 && b.editions?.length > 0) {
+          // Scan editions for the best rating
+          rating = Math.max(...b.editions.map((e: any) => e.ratings?.value || e.ratings?.averageRating || 0));
+        }
+
         return {
           id: b.foreignBookId,
           title: b.title,
@@ -70,7 +88,7 @@ async function handler(request: NextRequest) {
           isbn: b.isbn,
           publishedDate: b.releaseDate,
           publisher: b.publisher,
-          rating: b.ratings?.value || b.ratings?.averageRating || 0,
+          rating: rating,
           genres: b.genres || [],
           // Keep the raw bookshelf data for later if needed, though we store by foreignBookId
           metadata: b 

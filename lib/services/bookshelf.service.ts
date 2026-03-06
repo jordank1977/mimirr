@@ -18,6 +18,7 @@ export class BookshelfService {
   private static libraryCache: any[] | null = null
   private static libraryCacheTimestamp: number = 0
   private static CACHE_DURATION = 60 * 1000 // 60 seconds
+  private static libraryFetchPromise: Promise<any[]> | null = null
 
   /**
    * Test connection to Bookshelf
@@ -66,6 +67,9 @@ export class BookshelfService {
           age: `${((now - this.libraryCacheTimestamp) / 1000).toFixed(1)}s`,
         })
         books = this.libraryCache
+      } else if (this.libraryFetchPromise) {
+        logger.debug('Waiting for in-progress Bookshelf library fetch')
+        books = await this.libraryFetchPromise
       } else {
         // Get all books from the library
         const url = `${baseUrl}/api/v1/book`
@@ -76,26 +80,40 @@ export class BookshelfService {
           authorName,
         })
 
-        const response = await fetch(url, {
-          headers: {
-            'X-Api-Key': config.apiKey,
-          },
-        })
+        this.libraryFetchPromise = (async () => {
+          try {
+            const response = await fetch(url, {
+              headers: {
+                'X-Api-Key': config.apiKey,
+              },
+            })
 
-        if (!response.ok) {
-          logger.error('Failed to fetch books from Bookshelf library', {
-            status: response.status,
-            statusText: response.statusText,
-          })
+            if (!response.ok) {
+              logger.error('Failed to fetch books from Bookshelf library', {
+                status: response.status,
+                statusText: response.statusText,
+              })
+              return []
+            }
+
+            const data = await response.json()
+
+            // Update cache
+            this.libraryCache = data
+            this.libraryCacheTimestamp = Date.now()
+            logger.debug('Bookshelf library cache updated', { count: data.length })
+
+            return data
+          } finally {
+            this.libraryFetchPromise = null
+          }
+        })()
+
+        books = await this.libraryFetchPromise
+
+        if (books.length === 0) {
           return { exists: false }
         }
-
-        books = await response.json()
-        
-        // Update cache
-        this.libraryCache = books
-        this.libraryCacheTimestamp = now
-        logger.debug('Bookshelf library cache updated', { count: books.length })
       }
 
       logger.info('Fetched books from Bookshelf', {
