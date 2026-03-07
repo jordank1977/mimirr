@@ -1,4 +1,4 @@
-import { db, bookCache, type BookCache, type NewBookCache } from '@/lib/db'
+import { db, bookCache, settings, type BookCache, type NewBookCache } from '@/lib/db'
 import { eq, inArray } from 'drizzle-orm'
 import { BookinfoService } from './bookinfo.service'
 import { BookshelfService } from './bookshelf.service'
@@ -120,17 +120,30 @@ export class BookService {
    */
   static async searchBooks(query: string, limit = 20): Promise<Book[]> {
     try {
-      // TODO: Get Bookshelf config from settings
-      // For now, we'll need to get the config from somewhere
-      // This is a placeholder - we need to integrate with the actual Bookshelf config
-      const bookshelfConfig = {
-        url: process.env.BOOKSHELF_URL || 'http://localhost:8787',
-        apiKey: process.env.BOOKSHELF_API_KEY || ''
-      }
+      // Get Bookshelf config from database settings
+      const urlSetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'bookshelf_url'))
+        .limit(1)
 
-      if (!bookshelfConfig.url || !bookshelfConfig.apiKey) {
+      const apiKeySetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'bookshelf_api_key'))
+        .limit(1)
+
+      const bookshelfUrl = urlSetting[0]?.value
+      const bookshelfApiKey = apiKeySetting[0]?.value
+
+      if (!bookshelfUrl || !bookshelfApiKey) {
         logger.error('Bookshelf configuration missing')
         throw new Error('Bookshelf configuration not available')
+      }
+
+      const bookshelfConfig = {
+        url: bookshelfUrl,
+        apiKey: bookshelfApiKey
       }
 
       // Use Bookshelf as the single source of truth

@@ -1,3 +1,5 @@
+# NOTE: This project is in active development and may frequently have bugs, inefficiencies, and fluctuating states of functionality.
+
 # 📚 Mimirr
 
 A self-hosted book discovery and request management system. Mimirr helps you discover books and manage download requests through [Bookshelf](https://github.com/pennydreadful/bookshelf).
