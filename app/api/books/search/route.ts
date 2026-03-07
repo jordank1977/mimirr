@@ -53,11 +53,19 @@ async function handler(request: NextRequest) {
       const bookshelfResults = await BookshelfService.searchBooks(bookshelfConfig, query);
 
       // DEBUG: Log raw bookshelf results to help diagnose missing description
-      const fs = require('fs');
-      const path = require('path');
-      const debugLogPath = path.join(process.cwd(), '.cline-dev', 'temp', 'bookshelf_search_debug.json');
-      fs.writeFileSync(debugLogPath, JSON.stringify(bookshelfResults.slice(0, 3), null, 2));
-      logger.info('DEBUG: Logged raw bookshelf results to .cline-dev/temp/bookshelf_search_debug.json');
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const debugDir = path.join(process.cwd(), '.cline-dev', 'temp');
+        if (!fs.existsSync(debugDir)) {
+          fs.mkdirSync(debugDir, { recursive: true });
+        }
+        const debugLogPath = path.join(debugDir, 'bookshelf_search_debug.json');
+        fs.writeFileSync(debugLogPath, JSON.stringify(bookshelfResults.slice(0, 3), null, 2));
+        logger.info('DEBUG: Logged raw bookshelf results to .cline-dev/temp/bookshelf_search_debug.json');
+      } catch (e) {
+        logger.error('DEBUG: Failed to log bookshelf results', { error: e });
+      }
 
       // Step 2: Fetch Mimirr's own search results to find the correct Book IDs for metadata enrichment.
       // Bookshelf provides Work IDs (e.g., 2014321), but we need Book IDs (e.g., 32186357) for detailed metadata.
