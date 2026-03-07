@@ -53,18 +53,19 @@ async function handler(request: NextRequest) {
       const bookshelfResults = await BookshelfService.searchBooks(bookshelfConfig, query);
 
       // DEBUG: Log raw bookshelf results to help diagnose missing description
-      try {
-        const fs = require('fs');
-        const path = require('path');
-        const debugDir = path.join(process.cwd(), '.cline-dev', 'temp');
-        if (!fs.existsSync(debugDir)) {
-          fs.mkdirSync(debugDir, { recursive: true });
-        }
-        const debugLogPath = path.join(debugDir, 'bookshelf_search_debug.json');
-        fs.writeFileSync(debugLogPath, JSON.stringify(bookshelfResults.slice(0, 3), null, 2));
-        logger.info('DEBUG: Logged raw bookshelf results to .cline-dev/temp/bookshelf_search_debug.json');
-      } catch (e) {
-        logger.error('DEBUG: Failed to log bookshelf results', { error: e });
+      if (bookshelfResults.length > 0) {
+        const debugSample = bookshelfResults.slice(0, 2).map((b: any) => ({
+          title: b.title,
+          overview: b.overview,
+          description: b.description,
+          hasEditions: b.editions?.length > 0,
+          editionSample: b.editions?.[0] ? {
+            title: b.editions[0].title,
+            overview: b.editions[0].overview,
+            description: b.editions[0].description
+          } : 'none'
+        }));
+        logger.info('DEBUG: Raw Bookshelf Results Sample', { sample: debugSample });
       }
 
       // Step 2: Fetch Mimirr's own search results to find the correct Book IDs for metadata enrichment.
