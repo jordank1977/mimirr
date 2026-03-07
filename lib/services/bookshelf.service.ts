@@ -372,7 +372,8 @@ export class BookshelfService {
   }
 
   /**
-   * Search for books using Bookshelf's lookup endpoint
+   * Search for books using Bookshelf's unified search endpoint
+   * Returns full metadata including description, ratings, and high-res covers
    */
   static async searchBooks(
     config: BookshelfConfig,
@@ -380,8 +381,8 @@ export class BookshelfService {
   ): Promise<any[]> {
     try {
       const baseUrl = config.url.replace(/\/$/, '')
-      const url = `${baseUrl}/api/v1/book/lookup?term=${encodeURIComponent(term)}`
-      logger.debug('Searching books via Bookshelf lookup', { url, term })
+      const url = `${baseUrl}/api/v1/search?term=${encodeURIComponent(term)}`
+      logger.debug('Searching books via Bookshelf unified search', { url, term })
 
       const response = await fetch(url, {
         headers: {
@@ -397,9 +398,19 @@ export class BookshelfService {
         return []
       }
 
-      const results = await response.json()
-      logger.debug('Bookshelf search results', { count: results.length })
-      return results
+      const searchResults = await response.json()
+      
+      // Filter to only include book results (not author results)
+      const bookResults = searchResults
+        .filter((result: any) => result.book)
+        .map((result: any) => result.book)
+      
+      logger.debug('Bookshelf search results', { 
+        totalResults: searchResults.length,
+        bookResults: bookResults.length 
+      })
+      
+      return bookResults
     } catch (error) {
       logger.error('Failed to search books via Bookshelf', { error, term })
       return []

@@ -1,6 +1,7 @@
 import { db, bookCache, type BookCache, type NewBookCache } from '@/lib/db'
 import { eq, inArray } from 'drizzle-orm'
 import { BookinfoService } from './bookinfo.service'
+import { BookshelfService } from './bookshelf.service'
 import { logger } from '@/lib/utils/logger'
 import type { Book } from '@/types/bookinfo'
 
@@ -115,16 +116,54 @@ export class BookService {
   }
 
   /**
-   * Search for books
+   * Search for books using Bookshelf as the single source of truth
    */
   static async searchBooks(query: string, limit = 20): Promise<Book[]> {
     try {
-      const books = await BookinfoService.searchBooks(query, limit)
+      // TODO: Get Bookshelf config from settings
+      // For now, we'll need to get the config from somewhere
+      // This is a placeholder - we need to integrate with the actual Bookshelf config
+      const bookshelfConfig = {
+        url: process.env.BOOKSHELF_URL || 'http://localhost:8787',
+        apiKey: process.env.BOOKSHELF_API_KEY || ''
+      }
+
+      if (!bookshelfConfig.url || !bookshelfConfig.apiKey) {
+        logger.error('Bookshelf configuration missing')
+        throw new Error('Bookshelf configuration not available')
+      }
+
+      // Use Bookshelf as the single source of truth
+      const bookshelfResults = await BookshelfService.searchBooks(bookshelfConfig, query)
+      
+      // Transform Bookshelf results to Mimirr Book type
+      const books: Book[] = bookshelfResults.slice(0, limit).map((result: any) => ({
+        id: result.foreignBookId,
+        title: result.title,
+        description: result.overview,
+        coverImage: result.images?.[0]?.remoteUrl || result.remoteCover,
+        author: result.author?.authorName || '',
+        authors: result.author?.authorName ? [result.author.authorName] : [],
+        isbn: '', // Bookshelf doesn't provide ISBN in search results
+        isbn13: '', // Bookshelf doesn't provide ISBN13 in search results
+        pageCount: result.pageCount || 0,
+        publishedDate: result.releaseDate ? new Date(result.releaseDate).toISOString().split('T')[0] : undefined,
+        publisher: '', // Bookshelf doesn't provide publisher in search results
+        rating: result.ratings?.value || 0,
+        genres: result.genres?.filter((g: string) => g !== 'none') || [],
+        metadata: result // Store full Bookshelf metadata
+      }))
 
       // Cache all books
       for (const book of books) {
         await this.cacheBook(book)
       }
+
+      logger.debug('Bookshelf search completed', { 
+        query, 
+        results: books.length,
+        sampleTitle: books[0]?.title 
+      })
 
       return books
     } catch (error) {
