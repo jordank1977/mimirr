@@ -441,15 +441,15 @@ export async function addBook(
 }
 
 /**
- * Get status of a specific book from an author in Bookshelf
+ * Get status of a specific book from Bookshelf
  * @param config - Bookshelf configuration
- * @param authorId - The author ID in Bookshelf (stored as bookshelfId in requests)
+ * @param bookId - The book ID in Bookshelf (stored as bookshelfId in requests)
  * @param foreignBookId - The Goodreads book ID we're monitoring
  * @param title - The book title for fallback matching
  */
 export async function getAuthorBookStatus(
   config: BookshelfConfig,
-  authorId: number,
+  bookId: number,
   foreignBookId: string,
   title: string
 ): Promise<{
@@ -459,63 +459,45 @@ export async function getAuthorBookStatus(
   error?: string
 }> {
   try {
-    // Get books for this author using the book endpoint
-    const url = `/api/v1/book?authorId=${authorId}`;
+    // Get single book directly by its Readarr bookId
+    const url = `/api/v1/book/${bookId}`;
 
     logger.debug('Checking book status in Bookshelf', {
       url,
-      authorId,
+      bookId,
       foreignBookId,
       title
     });
 
-    const books = await fetchWithTimeout<any[]>(config, url);
-
-    // Log the books response
-    logger.debug('Books response from Bookshelf', {
-      authorId,
-      bookCount: books?.length || 0,
-      bookIds: books?.map((b: any) => b.foreignBookId) || []
-    });
-
-    // Helper function to clean titles for matching (same as in addBook)
-    const clean = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-
-    // Find the specific book - first try by foreignBookId
-    let book = books?.find(
-      (b: any) => b.foreignBookId === foreignBookId
-    );
-
-    // If not found by foreignBookId, try fallback title matching
-    if (!book && title) {
-      const cleanedTargetTitle = clean(title);
-      book = books?.find((b: any) => {
-        return clean(b.title) === cleanedTargetTitle;
-      });
-      
-      if (book) {
-        logger.info('Book found via fallback title matching', {
-          authorId,
+    let book: any;
+    try {
+      book = await fetchWithTimeout<any>(config, url);
+    } catch (err: any) {
+      if (err.message && err.message.includes('404')) {
+        logger.error('Book not found in Bookshelf', {
+          bookId,
           foreignBookId,
-          requestedTitle: title,
-          matchedTitle: book.title,
-          matchedForeignBookId: book.foreignBookId
+          title
         });
+        return {
+          status: 'error',
+          bookshelfId: undefined,
+          error: 'Book not found in Bookshelf'
+        };
       }
+      throw err;
     }
 
-    if (!book) {
-      logger.error('Book not found in author books', {
-        authorId,
+    if (!book || !book.id) {
+      logger.error('Invalid book response from Bookshelf', {
+        bookId,
         foreignBookId,
-        title,
-        bookCount: books?.length || 0,
-        availableBookIds: books?.map((b: any) => b.foreignBookId) || []
+        title
       });
       return {
         status: 'error',
         bookshelfId: undefined,
-        error: 'Book not found in author books'
+        error: 'Invalid book response from Bookshelf'
       };
     }
 
@@ -523,6 +505,7 @@ export async function getAuthorBookStatus(
     const hasFile = book.hasFile === true;
 
     logger.debug('Book status retrieved', {
+      bookId: book.id,
       foreignBookId: book.foreignBookId,
       bookFileCount,
       hasFile,
@@ -555,7 +538,7 @@ export async function getAuthorBookStatus(
   } catch (error) {
     logger.error('Failed to get book status from Bookshelf', {
       error,
-      authorId,
+      bookId,
       foreignBookId,
       title
     });
