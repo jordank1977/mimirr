@@ -34,7 +34,7 @@ export async function fetchLibraryWithCache(
   }
 
   // Start a new fetch
-  logger.info('Fetching fresh Bookshelf library');
+  logger.debug('Fetching fresh Bookshelf library');
 
   libraryFetchPromise = (async () => {
     try {

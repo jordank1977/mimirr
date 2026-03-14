@@ -15,6 +15,21 @@ export interface RequestWithBook extends Request {
 
 export class RequestService {
   /**
+   * Helper function to normalize dates to YYYY-MM-DD
+   */
+  static formatToYYYYMMDD(dateInput: string | Date | null | undefined): string | null {
+    if (!dateInput) return null;
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return null;
+
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
    * Create a new book request
    */
   static async createRequest(data: {
@@ -314,7 +329,7 @@ export class RequestService {
    */
   static async syncReadarrLibrary(bookshelfConfig: { url: string; apiKey: string }): Promise<void> {
     try {
-      logger.info('Starting Readarr library sync')
+      logger.debug('Starting Readarr library sync')
       
       // Make GET request to Readarr's book endpoint
       const baseUrl = bookshelfConfig.url.replace(/\/$/, '')
@@ -358,7 +373,7 @@ export class RequestService {
           })
       }
 
-      logger.info('Readarr library sync completed', {
+      logger.debug('Readarr library sync completed', {
         totalBooks: books.length,
         synced: mappedData.length,
       })
@@ -385,7 +400,7 @@ export class RequestService {
     }>
   }> {
     try {
-      logger.info('Starting polling of processing requests')
+      logger.debug('Starting polling of processing requests')
 
       // Get Bookshelf config from database
       const urlSetting = await db
@@ -424,7 +439,7 @@ export class RequestService {
           )
         )
 
-      logger.info('Found requests to poll', {
+      logger.debug('Found requests to poll', {
         total: requestsToPoll.length,
       })
 
@@ -480,7 +495,7 @@ export class RequestService {
           }
 
           // Apply self-healed ID if changed
-          if (statusResult.bookshelfId && statusResult.bookshelfId !== request.bookshelfId) {
+          if (statusResult.bookshelfId && String(statusResult.bookshelfId) !== String(request.bookshelfId)) {
             updateData.bookshelfId = statusResult.bookshelfId
             logger.info('Updated bookshelfId via self-healing', {
               requestId: request.id,
@@ -489,12 +504,16 @@ export class RequestService {
             })
           }
 
-          // Update publishedDate in cache if Readarr has a newer one
+          // Update publishedDate in cache if Readarr has a newer one or different date
           if (statusResult.releaseDate) {
             const readarrDate = new Date(statusResult.releaseDate)
             const mimirrDate = book.publishedDate ? new Date(book.publishedDate) : new Date(0)
 
-            if (readarrDate > mimirrDate) {
+            // Only update if the specific YYYY-MM-DD day is actually different or newer
+            const normalizedReadarrDate = RequestService.formatToYYYYMMDD(statusResult.releaseDate)
+            const normalizedMimirrDate = book.publishedDate ? RequestService.formatToYYYYMMDD(book.publishedDate) : null
+
+            if (readarrDate > mimirrDate && normalizedReadarrDate !== normalizedMimirrDate) {
               await db
                 .update(bookCache)
                 .set({ publishedDate: statusResult.releaseDate })
@@ -504,6 +523,8 @@ export class RequestService {
                 bookId: book.id,
                 oldDate: book.publishedDate,
                 newDate: statusResult.releaseDate,
+                normalizedOld: normalizedMimirrDate,
+                normalizedNew: normalizedReadarrDate
               })
 
               book.publishedDate = statusResult.releaseDate
