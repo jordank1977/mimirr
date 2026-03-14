@@ -457,6 +457,7 @@ export async function getAuthorBookStatus(
   bookFileCount?: number
   bookshelfId?: number
   error?: string
+  releaseDate?: string
 }> {
   try {
     // Get single book directly by its Readarr bookId
@@ -474,23 +475,52 @@ export async function getAuthorBookStatus(
       book = await fetchWithTimeout<any>(config, url);
     } catch (err: any) {
       if (err.message && err.message.includes('404')) {
-        logger.error('Book not found in Bookshelf', {
+        logger.debug('Book not found by ID in Bookshelf, attempting self-healing via library cache', {
           bookId,
           foreignBookId,
           title
         });
-        return {
-          status: 'error',
-          bookshelfId: undefined,
-          error: 'Book not found in Bookshelf'
-        };
+
+        // Try self-healing via cache and foreignBookId
+        try {
+          const library = await fetchLibraryWithCache(config);
+          const matchedBook = library.find((b: any) => String(b.foreignBookId) === String(foreignBookId));
+
+          if (matchedBook && matchedBook.id) {
+            logger.info('Self-healing successful: found book by foreignBookId', {
+              oldBookId: bookId,
+              newBookId: matchedBook.id,
+              foreignBookId
+            });
+            book = matchedBook;
+          } else {
+            logger.error('Book not found in Bookshelf after self-healing attempt', {
+              bookId,
+              foreignBookId,
+              title
+            });
+            return {
+              status: 'error',
+              bookshelfId: undefined,
+              error: 'Book not found in Bookshelf'
+            };
+          }
+        } catch (healingErr) {
+          logger.error('Self-healing attempt failed', { error: healingErr });
+          return {
+            status: 'error',
+            bookshelfId: undefined,
+            error: 'Book not found in Bookshelf and self-healing failed'
+          };
+        }
+      } else {
+        throw err;
       }
-      throw err;
     }
 
     if (!book || !book.id) {
       logger.error('Invalid book response from Bookshelf', {
-        bookId,
+        bookId: book?.id || bookId,
         foreignBookId,
         title
       });
@@ -503,6 +533,7 @@ export async function getAuthorBookStatus(
 
     const bookFileCount = book.statistics?.bookFileCount || 0;
     const hasFile = book.hasFile === true;
+    const releaseDate = book.releaseDate;
 
     logger.debug('Book status retrieved', {
       bookId: book.id,
@@ -510,7 +541,8 @@ export async function getAuthorBookStatus(
       bookFileCount,
       hasFile,
       grabbed: book.grabbed,
-      monitored: book.monitored
+      monitored: book.monitored,
+      releaseDate
     });
 
     // Determine status based on book data
@@ -518,7 +550,8 @@ export async function getAuthorBookStatus(
       return {
         status: 'available',
         bookFileCount,
-        bookshelfId: book.id
+        bookshelfId: book.id,
+        releaseDate
       };
     }
 
@@ -526,14 +559,16 @@ export async function getAuthorBookStatus(
       return {
         status: 'downloading',
         bookFileCount: 0,
-        bookshelfId: book.id
+        bookshelfId: book.id,
+        releaseDate
       };
     }
 
     return {
       status: 'missing',
       bookFileCount: 0,
-      bookshelfId: book.id
+      bookshelfId: book.id,
+      releaseDate
     };
   } catch (error) {
     logger.error('Failed to get book status from Bookshelf', {

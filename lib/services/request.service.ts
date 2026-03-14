@@ -1,4 +1,4 @@
-import { db, requests, users, settings, libraryBooks, type Request, type NewRequest } from '@/lib/db'
+import { db, requests, users, settings, libraryBooks, bookCache, type Request, type NewRequest } from '@/lib/db'
 import { eq, and, desc, isNotNull, lt, sql } from 'drizzle-orm'
 import { logger } from '@/lib/utils/logger'
 import { BookService } from './book.service'
@@ -479,6 +479,37 @@ export class RequestService {
             lastPolledAt: new Date(),
           }
 
+          // Apply self-healed ID if changed
+          if (statusResult.bookshelfId && statusResult.bookshelfId !== request.bookshelfId) {
+            updateData.bookshelfId = statusResult.bookshelfId
+            logger.info('Updated bookshelfId via self-healing', {
+              requestId: request.id,
+              oldId: request.bookshelfId,
+              newId: statusResult.bookshelfId,
+            })
+          }
+
+          // Update publishedDate in cache if Readarr has a newer one
+          if (statusResult.releaseDate) {
+            const readarrDate = new Date(statusResult.releaseDate)
+            const mimirrDate = book.publishedDate ? new Date(book.publishedDate) : new Date(0)
+
+            if (readarrDate > mimirrDate) {
+              await db
+                .update(bookCache)
+                .set({ publishedDate: statusResult.releaseDate })
+                .where(eq(bookCache.id, book.id))
+
+              logger.info('Updated book release date from Readarr', {
+                bookId: book.id,
+                oldDate: book.publishedDate,
+                newDate: statusResult.releaseDate,
+              })
+
+              book.publishedDate = statusResult.releaseDate
+            }
+          }
+
           if (statusResult.status === 'available') {
             updateData.status = 'available'
             updateData.completedAt = new Date()
@@ -552,6 +583,46 @@ export class RequestService {
                 requestId: request.id,
                 bookTitle: book.title,
               })
+            }
+          } else if (statusResult.status === 'missing') {
+            // Apply Unreleased vs Processing tie-breaker
+            if (book.publishedDate) {
+              const releaseDate = new Date(book.publishedDate)
+              const currentDate = new Date()
+              const bufferHours = 24
+              const bufferedReleaseDate = new Date(releaseDate.getTime() + bufferHours * 60 * 60 * 1000)
+
+              if (currentDate < bufferedReleaseDate) {
+                if (request.status !== 'approved') {
+                  updateData.status = 'approved' // Mimirr's Unreleased state
+                  updated++
+                  details.push({
+                    requestId: request.id,
+                    bookTitle: book.title,
+                    oldStatus: request.status,
+                    newStatus: 'approved',
+                  })
+                  logger.info('Request mapped back to Unreleased state', {
+                    requestId: request.id,
+                    bookTitle: book.title,
+                  })
+                }
+              } else {
+                if (request.status !== 'processing') {
+                  updateData.status = 'processing'
+                  updated++
+                  details.push({
+                    requestId: request.id,
+                    bookTitle: book.title,
+                    oldStatus: request.status,
+                    newStatus: 'processing',
+                  })
+                  logger.info('Request advanced to processing (past release date)', {
+                    requestId: request.id,
+                    bookTitle: book.title,
+                  })
+                }
+              }
             }
           } else if (statusResult.status === 'error') {
             // Log error but keep as processing/approved - could be temporary
