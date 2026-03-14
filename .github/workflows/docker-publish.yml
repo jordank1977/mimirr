@@ -1,7 +1,13 @@
-name: Docker Build and Publish
+name: Docker Publish
+run-name: ${{ inputs.commit_title || 'Manual Docker Build' }}
 
 on:
   workflow_dispatch:
+    inputs:
+      commit_title:
+        description: 'The title of the commit for the UI'
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
