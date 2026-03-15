@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/middleware/auth.middleware'
+import { logDir } from '@/lib/utils/logger'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -7,11 +8,6 @@ export async function GET(request: NextRequest) {
   try {
     // Ensure only admins can access logs
     await requireAdmin(request)
-
-    // Determine log directory based on environment
-    const logDir = process.env.NODE_ENV === 'production' 
-      ? path.join(process.cwd(), 'config', 'logs')
-      : path.join(process.cwd(), 'logs')
 
     // Read directory contents
     let files
@@ -28,7 +24,7 @@ export async function GET(request: NextRequest) {
     // Filter and process log files
     const logFiles = await Promise.all(
       files
-        .filter(file => file.startsWith('mimirr.log'))
+        .filter(file => file.startsWith('mimirr') && (file.includes('log') || file.includes('debug')))
         .map(async (file) => {
           const filePath = path.join(logDir, file)
           const stats = await fs.stat(filePath)

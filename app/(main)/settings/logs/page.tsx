@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -20,6 +20,53 @@ export default function LogsSettingsPage() {
   const [selectedLog, setSelectedLog] = useState<string | null>(null)
   const [logContent, setLogContent] = useState<string>('')
   const [loadingContent, setLoadingContent] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const logContainerRef = useRef<HTMLPreElement>(null)
+
+  const fetchLogContent = useCallback(async (isAutoRefresh = false) => {
+    if (!selectedLog) {
+      setLogContent('')
+      return
+    }
+
+    if (!isAutoRefresh) setLoadingContent(true)
+    else setIsRefreshing(true)
+
+    try {
+      const response = await fetch(`/api/logs/view?file=${encodeURIComponent(selectedLog)}`)
+      if (response.ok) {
+        const text = await response.text()
+
+        // Check scroll position before updating content
+        const container = logContainerRef.current
+        let isAtBottom = true
+        if (container) {
+          const threshold = 10 // pixels
+          isAtBottom = Math.abs(container.scrollHeight - container.scrollTop - container.clientHeight) <= threshold
+        }
+
+        setLogContent(text)
+
+        // Only auto-scroll if user was already at the bottom
+        if (isAtBottom && container) {
+          // Use setTimeout to ensure DOM has updated before scrolling
+          setTimeout(() => {
+            if (logContainerRef.current) {
+              logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+            }
+          }, 0)
+        }
+      } else {
+        if (!isAutoRefresh) setLogContent(`Error loading log file: ${response.status} ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Failed to fetch log content:', error)
+      if (!isAutoRefresh) setLogContent('Error loading log content')
+    } finally {
+      if (!isAutoRefresh) setLoadingContent(false)
+      else setIsRefreshing(false)
+    }
+  }, [selectedLog])
 
   useEffect(() => {
     async function fetchSettings() {
@@ -42,9 +89,25 @@ export default function LogsSettingsPage() {
         if (response.ok) {
           const data = await response.json()
           setLogFiles(data)
-          // Auto-select the first log file if available
+
+          // Auto-select appropriate stream on initial load if no log is selected
           if (data.length > 0 && !selectedLog) {
-            setSelectedLog(data[0].name)
+            // Check if we already fetched logLevel setting
+            fetch('/api/settings/logs').then(res => res.json()).then(settingsData => {
+               if (settingsData.level === 'debug') {
+                 const debugFiles = data.filter((f: LogFile) => f.name.includes('debug'))
+                 if (debugFiles.length > 0) {
+                   setSelectedLog(debugFiles[0].name)
+                   return
+                 }
+               }
+               const stdFiles = data.filter((f: LogFile) => !f.name.includes('debug'))
+               if (stdFiles.length > 0) {
+                 setSelectedLog(stdFiles[0].name)
+               } else {
+                 setSelectedLog(data[0].name)
+               }
+            }).catch(() => setSelectedLog(data[0].name))
           }
         }
       } catch (error) {
@@ -59,31 +122,22 @@ export default function LogsSettingsPage() {
   }, [])
 
   useEffect(() => {
-    async function fetchLogContent() {
-      if (!selectedLog) {
-        setLogContent('')
-        return
-      }
-
-      setLoadingContent(true)
-      try {
-        const response = await fetch(`/api/logs/view?file=${encodeURIComponent(selectedLog)}`)
-        if (response.ok) {
-          const text = await response.text()
-          setLogContent(text)
-        } else {
-          setLogContent(`Error loading log file: ${response.status} ${response.statusText}`)
-        }
-      } catch (error) {
-        console.error('Failed to fetch log content:', error)
-        setLogContent('Error loading log content')
-      } finally {
-        setLoadingContent(false)
-      }
-    }
-
     fetchLogContent()
-  }, [selectedLog])
+  }, [selectedLog, fetchLogContent])
+
+  // Setup auto-polling
+  useEffect(() => {
+    if (!selectedLog) return
+
+    const intervalId = setInterval(() => {
+      // Only auto-refresh if the page is visible
+      if (document.visibilityState === 'visible') {
+        fetchLogContent(true)
+      }
+    }, 5000)
+
+    return () => clearInterval(intervalId)
+  }, [selectedLog, fetchLogContent])
 
   const handleSave = async () => {
     setSaving(true)
@@ -97,6 +151,21 @@ export default function LogsSettingsPage() {
 
       if (response.ok) {
         setMessage({ type: 'success', text: 'Log settings saved successfully' })
+
+        // Auto-switch to the appropriate log stream based on the new level
+        if (logFiles.length > 0) {
+          if (logLevel === 'debug') {
+            const debugFiles = logFiles.filter(f => f.name.includes('debug'))
+            if (debugFiles.length > 0) {
+              setSelectedLog(debugFiles[0].name)
+            }
+          } else {
+            const stdFiles = logFiles.filter(f => !f.name.includes('debug'))
+            if (stdFiles.length > 0) {
+              setSelectedLog(stdFiles[0].name)
+            }
+          }
+        }
       } else {
         const data = await response.json()
         setMessage({ type: 'error', text: data.error || 'Failed to save settings' })
@@ -225,21 +294,38 @@ export default function LogsSettingsPage() {
         {selectedLog && (
           <div className="mt-6">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-medium text-foreground">Log Content: {selectedLog}</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewLog(selectedLog)}
-                className="text-xs"
-              >
-                Open in New Tab
-              </Button>
+              <h3 className="text-lg font-medium text-foreground flex items-center">
+                Log Content: {selectedLog}
+                {isRefreshing && <span className="ml-3 text-xs text-foreground-muted animate-pulse">Refreshing...</span>}
+              </h3>
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchLogContent(false)}
+                  className="text-xs"
+                  disabled={loadingContent || isRefreshing}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewLog(selectedLog)}
+                  className="text-xs"
+                >
+                  Open in New Tab
+                </Button>
+              </div>
             </div>
-            <div className="border border-border rounded-md bg-background">
+            <div className="border border-border rounded-md bg-background relative">
               {loadingContent ? (
                 <div className="p-4 text-center text-foreground-muted">Loading log content...</div>
               ) : (
-                <pre className="p-4 overflow-auto max-h-[500px] text-sm text-foreground whitespace-pre-wrap">
+                <pre
+                  ref={logContainerRef}
+                  className="p-4 overflow-auto max-h-[500px] text-sm text-foreground whitespace-pre-wrap"
+                >
                   {logContent || 'No content available'}
                 </pre>
               )}
