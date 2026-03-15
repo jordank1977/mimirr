@@ -10,7 +10,7 @@ type LogLevel = 'info' | 'warn' | 'error' | 'debug'
 
 // Configuration
 const IS_PROD = process.env.NODE_ENV === 'production'
-const LOG_DIR = IS_PROD
+export const logDir = IS_PROD
   ? path.join(process.cwd(), 'config', 'logs')
   : path.join(process.cwd(), 'logs')
 
@@ -44,8 +44,8 @@ const createLogger = () => {
   }
 
   // Ensure log directory exists (server-side only)
-  if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true })
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true })
   }
 
   const pinoConfig: pino.LoggerOptions = {
@@ -94,7 +94,7 @@ const createLogger = () => {
       {
         target: 'pino-roll',
         options: {
-          file: path.join(LOG_DIR, 'mimirr'),
+          file: path.join(logDir, 'mimirr'),
           extension: '.log',
           size: '20m', // 20 Megabytes
           mkdir: true,
@@ -106,7 +106,7 @@ const createLogger = () => {
       {
         target: 'pino-roll',
         options: {
-          file: path.join(LOG_DIR, 'mimirr.debug'),
+          file: path.join(logDir, 'mimirr.debug'),
           extension: '.log',
           size: '20m', // 20 Megabytes
           mkdir: true,
