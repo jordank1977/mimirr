@@ -365,12 +365,33 @@ export class RequestService {
 
       // Perform bulk upsert
       if (mappedData.length > 0) {
-        await db.insert(libraryBooks)
-          .values(mappedData)
-          .onConflictDoUpdate({
-            target: libraryBooks.foreignBookId,
-            set: { status: sql`excluded.status` }
-          })
+        try {
+          await db.insert(libraryBooks)
+            .values(mappedData)
+            .onConflictDoUpdate({
+              target: libraryBooks.foreignBookId,
+              set: { status: sql`excluded.status` }
+            })
+        } catch (dbError: any) {
+          logger.error('Database constraint error during library sync', { error: dbError });
+          // If we hit a constraint error during bulk insert, try one-by-one to isolate failures
+          let successCount = 0;
+          for (const item of mappedData) {
+             try {
+                await db.insert(libraryBooks).values([item]).onConflictDoUpdate({
+                   target: libraryBooks.foreignBookId,
+                   set: { status: sql`excluded.status` }
+                });
+                successCount++;
+             } catch (singleError: any) {
+                logger.error('Failed to sync individual library book', {
+                   foreignBookId: item.foreignBookId,
+                   error: singleError.message
+                });
+             }
+          }
+          logger.warn(`Recovered ${successCount}/${mappedData.length} records via fallback sync`);
+        }
       }
 
       logger.debug('Readarr library sync completed', {
@@ -460,7 +481,26 @@ export class RequestService {
 
         try {
           // Get book details to find foreignBookId
-          const book = await BookService.getBookById(request.bookId)
+          let book = await BookService.getBookById(request.bookId)
+
+          // Automatic "Unknown Book" Recovery
+          if (book && (book.title === 'Unknown Book' || !book.title) && request.foreignBookId) {
+             logger.warn(`Unknown Book artifact detected during polling for request ${request.id}. Triggering automatic recovery for foreignBookId: ${request.foreignBookId}`);
+             try {
+                // Delete stale cache entry to force fresh fetch
+                await db.delete(bookCache).where(eq(bookCache.id, request.foreignBookId));
+
+                // Re-fetch book without relying on cache
+                const freshBook = await BookService.getBookById(request.bookId);
+                if (freshBook && freshBook.title !== 'Unknown Book') {
+                   book = freshBook;
+                   logger.info(`Successfully recovered Unknown Book artifact`, { newTitle: book.title });
+                }
+             } catch (recoveryError) {
+                logger.error('Failed to recover Unknown Book artifact', { error: recoveryError, requestId: request.id });
+             }
+          }
+
           if (!book) {
             logger.error('Book not found for request', {
               requestId: request.id,
@@ -705,15 +745,41 @@ export class RequestService {
           }
 
           // Update request regardless of status (updates lastPolledAt)
-          await db
-            .update(requests)
-            .set(updateData)
-            .where(eq(requests.id, request.id))
-        } catch (error) {
-          logger.error('Failed to poll request', {
-            error,
-            requestId: request.id,
-          })
+          try {
+            await db
+              .update(requests)
+              .set(updateData)
+              .where(eq(requests.id, request.id))
+          } catch (dbError: any) {
+             logger.error('Database constraint error updating request status', {
+               error: dbError,
+               requestId: request.id,
+               updateData
+             });
+             errors++;
+          }
+        } catch (error: any) {
+          // Detect Readarr HTTP 409 Conflict errors (often related to Editions/Constraint failures on their end)
+          if (error.message && error.message.includes('409')) {
+             logger.error('Readarr 409 Conflict Error during polling (Editions/Constraint Sync Failure)', {
+                requestId: request.id,
+                foreignBookId: request.foreignBookId,
+                error: error.message
+             });
+
+             // Trigger a Self-Healing Sync: nullify the Readarr ID to force a fresh lookup next cycle
+             try {
+                logger.warn(`Self-Healing Sync Triggered: Disconnecting Readarr ID for Request ${request.id}`);
+                await db.update(requests).set({ bookshelfId: null }).where(eq(requests.id, request.id));
+             } catch (healError) {
+                logger.error('Failed to apply Self-Healing Sync', healError);
+             }
+          } else {
+             logger.error('Failed to poll request', {
+               error,
+               requestId: request.id,
+             })
+          }
           errors++
         }
       }

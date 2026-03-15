@@ -304,16 +304,62 @@ export async function addBook(
 
     const basePayload = match.book;
 
-    // Step 2: The Book Presence Check
+    // Step 2: The Book Presence Check (Editions Fix via PUT)
     try {
       const library = await fetchWithTimeout<any[]>(config, '/api/v1/book');
       const existingBook = library.find((b: any) => String(b.foreignBookId) === String(bookData.foreignBookId));
 
       if (existingBook) {
-        // Branch A (Exists)
-        if (existingBook.monitored === false) {
-          await apiPut(config, '/api/v1/book/monitor', { bookIds: [existingBook.id], monitored: true });
+        // Branch A (Exists) - Use PUT to update instead of POST to add
+        // We MUST fetch the full library array for the author to get complete objects
+        // before performing a PUT update to avoid validation/LINQ crashes in Readarr.
+        const authorId = existingBook.authorId || existingBook.author?.id;
+
+        if (authorId) {
+           const authorLibrary = await fetchWithTimeout<any[]>(config, `/api/v1/book?authorId=${authorId}`);
+           const fullExistingBook = authorLibrary.find((b: any) => String(b.id) === String(existingBook.id)) || existingBook;
+
+           logger.info('Updating existing book in Readarr (PUT) to avoid Editions Unique Constraint', {
+             bookId: fullExistingBook.id,
+             foreignBookId: fullExistingBook.foreignBookId
+           });
+
+           const updatePayload = {
+             ...fullExistingBook,
+             monitored: true,
+             qualityProfileId: bookData.qualityProfileId,
+             rootFolderPath: bookData.rootFolderPath || fullExistingBook.rootFolderPath,
+             authorId: fullExistingBook.authorId || 0,
+             addOptions: { searchForNewBook: true },
+             author: {
+               ...(fullExistingBook.author || {}),
+               qualityProfileId: bookData.qualityProfileId,
+               metadataProfileId: 1,
+               rootFolderPath: bookData.rootFolderPath || fullExistingBook.rootFolderPath,
+               monitored: true,
+               monitorNewItems: "none",
+             },
+             editions: fullExistingBook.editions && fullExistingBook.editions.length > 0 ? fullExistingBook.editions : [{
+                 foreignEditionId: fullExistingBook.foreignEditionId || '0',
+                 monitored: true
+             }]
+           };
+
+           await apiPut<any>(config, `/api/v1/book/${fullExistingBook.id}`, updatePayload);
+
+           // Readarr quirk: Updating an existing book via PUT does not automatically trigger search.
+           try {
+               await apiPost(config, '/api/v1/command', { name: 'BookSearch', bookIds: [fullExistingBook.id] });
+           } catch(e) {
+               logger.warn('Failed to dispatch search command after updating book', { error: e, bookId: fullExistingBook.id });
+           }
+        } else {
+           // Fallback if no authorId is available, just monitor it
+           if (existingBook.monitored === false) {
+             await apiPut(config, '/api/v1/book/monitor', { bookIds: [existingBook.id], monitored: true });
+           }
         }
+
         return await executeHandshakeAndSearch(existingBook.id, existingBook.authorId);
       }
     } catch (error) {
