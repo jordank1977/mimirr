@@ -179,6 +179,7 @@ export default function RequestsPage() {
       (r) => r.status === 'processing' && !isUnreleased(r)
     ).length,
     available: requests.filter((r) => r.status === 'available').length,
+    error: requests.filter((r) => r.status === 'error').length,
   }
 
   if (loading) {
@@ -222,6 +223,10 @@ export default function RequestsPage() {
           <p className="text-sm text-foreground-muted">Available</p>
           <p className="text-2xl font-bold text-blue-600">{stats.available}</p>
         </div>
+        <div className="bg-background-card border border-border rounded-lg p-4">
+          <p className="text-sm text-foreground-muted">Error</p>
+          <p className="text-2xl font-bold text-red-600">{stats.error}</p>
+        </div>
       </div>
 
       {/* Filter Buttons */}
@@ -256,6 +261,13 @@ export default function RequestsPage() {
             Available ({stats.available})
           </Button>
           <Button
+            variant={filter === 'error' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('error')}
+          >
+            Error ({stats.error})
+          </Button>
+          <Button
             variant={filter === 'all' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('all')}
@@ -279,7 +291,7 @@ export default function RequestsPage() {
             size="sm"
             onClick={handlePollStatus}
             disabled={
-              polling || (stats.processing === 0 && stats.unreleased === 0)
+              polling || (stats.processing === 0 && stats.unreleased === 0 && stats.error === 0)
             }
             className="w-full sm:w-auto"
           >

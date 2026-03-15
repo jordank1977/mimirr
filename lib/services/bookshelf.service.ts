@@ -41,6 +41,7 @@ export class BookshelfService {
   // ============================================================
 
   static checkBookInLibrary = BooksAPI.checkBookInLibrary
+  static getLibraryBooks = BooksAPI.getLibraryBooks
   static lookupAuthor = BooksAPI.lookupAuthor
   static searchBooks = BooksAPI.searchBooks
   static getRootFolders = BooksAPI.getRootFolders

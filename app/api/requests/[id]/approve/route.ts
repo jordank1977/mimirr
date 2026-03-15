@@ -65,10 +65,11 @@ async function postHandler(
       book.publishedDate && new Date(book.publishedDate) > new Date()
     const initialStatus = isUnreleased ? 'approved' : 'processing'
 
-    // Update request status immediately to provide fast UI response
+    // Update request status immediately to provide fast UI response and clear errors
     const updatedRequest = await RequestService.updateRequest(requestId, {
       status: initialStatus,
       processedBy: user.userId,
+      notes: '', // Cannot use null since type specifies string | undefined for the update partial
     })
 
     // Process Bookshelf addition in the background
@@ -193,6 +194,12 @@ async function postHandler(
         logger.error('Background Bookshelf addition failed', {
           requestId,
           error: error instanceof Error ? error.message : String(error),
+        })
+
+        // Update request status to error
+        await RequestService.updateRequest(requestId, {
+          status: 'error' as any,
+          notes: `Failed to add to Bookshelf: ${error instanceof Error ? error.message : String(error)}`,
         })
 
         // Send notification to admins about Bookshelf error

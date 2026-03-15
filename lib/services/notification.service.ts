@@ -9,6 +9,7 @@ export type NotificationType =
   | 'request_available'
   | 'request_submitted'
   | 'bookshelf_error'
+  | 'request_error'
 
 interface DiscordEmbed {
   title: string
@@ -425,6 +426,7 @@ export class NotificationService {
       case 'request_submitted':
         return settings.notifyRequestSubmitted
       case 'bookshelf_error':
+      case 'request_error':
         return settings.notifyBookshelfError
       default:
         return false
@@ -439,6 +441,7 @@ export class NotificationService {
       case 'request_approved':
         return 0x22c55e // Green
       case 'request_declined':
+      case 'request_error':
         return 0xef4444 // Red
       case 'request_available':
         return 0x3b82f6 // Blue

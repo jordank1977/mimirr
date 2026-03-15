@@ -7,6 +7,15 @@ import { logger } from '@/lib/utils/logger';
  * Check if a book already exists in the Bookshelf library
  * Returns the book's status if found, null if not in library
  */
+export async function getLibraryBooks(config: BookshelfConfig): Promise<any[]> {
+  try {
+    return await apiGet<any[]>(config, '/api/v1/book')
+  } catch (error) {
+    logger.error('Failed to get library books from Bookshelf', { error })
+    return []
+  }
+}
+
 export async function checkBookInLibrary(
   config: BookshelfConfig,
   bookTitle: string,

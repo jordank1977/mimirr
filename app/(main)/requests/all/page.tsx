@@ -230,6 +230,7 @@ export default function AllRequestsPage() {
     ).length,
     available: requests.filter((r) => r.status === 'available').length,
     declined: requests.filter((r) => r.status === 'declined').length,
+    error: requests.filter((r) => r.status === 'error').length,
   }
 
   if (loading) {
@@ -318,6 +319,13 @@ export default function AllRequestsPage() {
             Declined ({stats.declined})
           </Button>
           <Button
+            variant={filter === 'error' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('error')}
+          >
+            Error ({stats.error})
+          </Button>
+          <Button
             variant={filter === 'all' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('all')}
@@ -340,7 +348,7 @@ export default function AllRequestsPage() {
             variant="outline"
             size="sm"
             onClick={handlePollStatus}
-            disabled={polling || (stats.processing === 0 && stats.unreleased === 0)}
+            disabled={polling || (stats.processing === 0 && stats.unreleased === 0 && stats.error === 0)}
           >
             {polling ? 'Checking...' : 'Check Status Now'}
           </Button>
@@ -424,15 +432,15 @@ export default function AllRequestsPage() {
                     </div>
 
                     {/* Admin Actions */}
-                    {request.status === 'pending' && (
-                      <div className="mt-3 flex gap-2">
+                    {(request.status === 'pending' || request.status === 'error') && (
+                      <div className="mt-3 flex gap-2 flex-wrap items-center">
                         <Button
                           variant="default"
                           size="sm"
                           onClick={() => handleApprove(request.id)}
                           disabled={approvingId === request.id}
                         >
-                          {approvingId === request.id ? 'Approving...' : 'Approve'}
+                          {approvingId === request.id ? (request.status === 'error' ? 'Retrying...' : 'Approving...') : (request.status === 'error' ? 'Retry Import' : 'Approve')}
                         </Button>
                         <Button
                           variant="outline"
@@ -442,12 +450,18 @@ export default function AllRequestsPage() {
                         >
                           Decline
                         </Button>
+                        {request.status === 'error' && request.notes && (
+                           <div className="text-xs text-red-500 max-w-sm mt-1 sm:mt-0 font-medium whitespace-pre-wrap">
+                             {request.notes}
+                           </div>
+                        )}
                       </div>
                     )}
 
                     {(request.status === 'approved' ||
                       request.status === 'declined' ||
                       request.status === 'processing' ||
+                      request.status === 'error' ||
                       request.status === 'available') && (
                       <div className="mt-3">
                         <Button

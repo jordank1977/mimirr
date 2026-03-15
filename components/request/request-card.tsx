@@ -44,8 +44,15 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
                   {request.bookAuthor}
                 </p>
               </div>
-              <RequestStatusBadge status={request.status} />
+              <div className="flex flex-col items-end gap-1">
+                <RequestStatusBadge status={request.status} />
+              </div>
             </div>
+            {request.status === 'error' && request.notes && (
+              <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded border border-red-200 dark:border-red-800/30 whitespace-pre-wrap">
+                {request.notes}
+              </div>
+            )}
 
             <div className="mt-2 space-y-1 text-xs text-foreground-muted">
               {request.requestedBy && (

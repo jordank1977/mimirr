@@ -27,7 +27,7 @@ export const requests = sqliteTable('requests', {
     .references(() => users.id, { onDelete: 'cascade' }),
   bookId: text('book_id').notNull(), // Goodreads work ID
   status: text('status', {
-    enum: ['pending', 'approved', 'declined', 'available', 'processing'],
+    enum: ['pending', 'approved', 'declined', 'available', 'processing', 'error'],
   })
     .notNull()
     .default('pending'),
@@ -110,7 +110,7 @@ export const notifications = sqliteTable('notifications', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   type: text('type', {
-    enum: ['request_approved', 'request_declined', 'request_available', 'request_submitted', 'bookshelf_error'],
+    enum: ['request_approved', 'request_declined', 'request_available', 'request_submitted', 'bookshelf_error', 'request_error'],
   }).notNull(),
   title: text('title').notNull(),
   message: text('message').notNull(),

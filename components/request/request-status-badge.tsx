@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils/cn'
 
 interface RequestStatusBadgeProps {
-  status: 'pending' | 'approved' | 'declined' | 'available' | 'processing'
+  status: 'pending' | 'approved' | 'declined' | 'available' | 'processing' | 'error'
 }
 
 const statusConfig = {
@@ -24,6 +24,10 @@ const statusConfig = {
   processing: {
     label: 'Processing',
     className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+  },
+  error: {
+    label: 'Error',
+    className: 'bg-red-500 text-white dark:bg-red-900 dark:text-red-200',
   },
 }
 

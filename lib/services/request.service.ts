@@ -428,15 +428,12 @@ export class RequestService {
         apiKey: bookshelfApiKey,
       }
 
-      // Get all processing and approved (unreleased) requests with bookshelfId
+      // Get all processing, approved, and error requests
       const requestsToPoll = await db
         .select()
         .from(requests)
         .where(
-          and(
-            sql`${requests.status} IN ('processing', 'approved')`,
-            isNotNull(requests.bookshelfId)
-          )
+          sql`${requests.status} IN ('processing', 'approved', 'error')`
         )
 
       logger.debug('Found requests to poll', {
@@ -473,11 +470,32 @@ export class RequestService {
             continue
           }
 
+          // Self-healing fallback: If bookshelfId is missing, attempt to find it via the full library
+          let currentBookshelfId = request.bookshelfId
+          if (!currentBookshelfId && request.foreignBookId) {
+             try {
+                const allBooks = await BookshelfService.getLibraryBooks(bookshelfConfig)
+                const matchedBook = allBooks.find((b: any) => String(b.foreignBookId) === String(request.foreignBookId))
+                if (matchedBook && matchedBook.id) {
+                    currentBookshelfId = matchedBook.id
+                    logger.info(`Self-healed missing bookshelfId for request ${request.id}`, { newBookshelfId: currentBookshelfId })
+                    await db.update(requests).set({ bookshelfId: currentBookshelfId }).where(eq(requests.id, request.id))
+                }
+             } catch (e) {
+                logger.error('Failed to self-heal missing bookshelfId', e)
+             }
+          }
+
+          if (!currentBookshelfId) {
+             logger.debug(`Skipping poll for request ${request.id} - no bookshelfId and self-heal failed`)
+             continue
+          }
+
           // Check status in Bookshelf
           // Use foreignBookId if available, otherwise fallback to bookId
           const statusResult = await BookshelfService.getAuthorBookStatus(
             bookshelfConfig,
-            request.bookshelfId!,
+            currentBookshelfId,
             request.foreignBookId || request.bookId,
             book.title
           )
@@ -531,7 +549,7 @@ export class RequestService {
             }
           }
 
-          if (statusResult.status === 'available') {
+          if (statusResult.status === 'available' && request.status !== 'available') {
             updateData.status = 'available'
             updateData.completedAt = new Date()
             updated++
@@ -539,7 +557,7 @@ export class RequestService {
             details.push({
               requestId: request.id,
               bookTitle: book.title,
-              oldStatus: 'processing',
+              oldStatus: request.status,
               newStatus: 'available',
             })
 
@@ -646,12 +664,44 @@ export class RequestService {
               }
             }
           } else if (statusResult.status === 'error') {
-            // Log error but keep as processing/approved - could be temporary
-            logger.warn('Error checking request status', {
-              requestId: request.id,
-              error: statusResult.error,
-            })
-            errors++
+            // Check if there is an explicit error message needing manual intervention
+            if (statusResult.error && statusResult.error.includes('MIMIRR_MANUAL_INTERVENTION_REQUIRED')) {
+               if (request.status !== 'error') {
+                 updateData.status = 'error'
+                 updateData.notes = statusResult.error
+                 updated++
+                 details.push({
+                   requestId: request.id,
+                   bookTitle: book.title,
+                   oldStatus: request.status,
+                   newStatus: 'error',
+                 })
+                 
+                 // Notify Admins
+                 const adminIds = await NotificationService.getAdminUserIds()
+                 await NotificationService.sendNotification(
+                   adminIds,
+                   'request_error',
+                   'Bookshelf Sync Error',
+                   book.title,
+                   book.author || 'Unknown Author',
+                   `Manual Intervention Required: ${statusResult.error}`,
+                   book.coverImage,
+                   'System',
+                   'Error',
+                   'N/A',
+                   '/requests/all?filter=error'
+                 )
+                 
+               }
+            } else {
+              // Log error but keep as processing/approved - could be temporary
+              logger.warn('Error checking request status', {
+                requestId: request.id,
+                error: statusResult.error,
+              })
+              errors++
+            }
           }
 
           // Update request regardless of status (updates lastPolledAt)
