@@ -98,7 +98,7 @@ const createLogger = () => {
           extension: '.log',
           size: '20m', // 20 Megabytes
           mkdir: true,
-          limit: { time: 14 * 24 * 60 * 60 * 1000 }, // Retain files for 14 days (using ms limit since pino-roll supports time limit in ms, or `{ time: '14d' }` might not be supported but milliseconds is safe. Wait, `1209600000` is 14 days. Actually, `count: 14` is often used with daily rotation. The instructions state "keep files for 14d (14 days) instead of 30 files". pino-roll supports `{ time: '14d' }` as a string if using `ms` package. Let's use `time: 1209600000` to be safe, or just stick to count if it's daily. Actually pino-roll supports `limit: { time: 1209600000 }`.)
+          limit: { count: 14 }, // Retain 14 files (roughly 14 days if logging 20MB/day, or fewer days if rotating more frequently)
         },
         level: 'info', // Hardcoded to capture info, warn, error, fatal
       },
@@ -110,7 +110,7 @@ const createLogger = () => {
           extension: '.log',
           size: '20m', // 20 Megabytes
           mkdir: true,
-          limit: { time: 14 * 24 * 60 * 60 * 1000 }, // Retain files for 14 days
+          limit: { count: 14 }, // Retain 14 files
         },
         level: 'trace', // Hardcoded to lowest level to capture everything 24/7
       }
