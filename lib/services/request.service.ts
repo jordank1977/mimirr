@@ -182,7 +182,7 @@ export class RequestService {
   static async updateRequest(
     requestId: number,
     data: {
-      status?: 'pending' | 'approved' | 'declined' | 'available' | 'processing'
+      status?: 'pending' | 'approved' | 'declined' | 'available' | 'processing' | 'error'
       notes?: string
       processedBy?: number
       bookshelfId?: number
@@ -449,12 +449,12 @@ export class RequestService {
         apiKey: bookshelfApiKey,
       }
 
-      // Get all processing, approved, and error requests
+      // Get all pending, processing, approved, and error requests
       const requestsToPoll = await db
         .select()
         .from(requests)
         .where(
-          sql`${requests.status} IN ('processing', 'approved', 'error')`
+          sql`${requests.status} IN ('pending', 'processing', 'approved', 'error')`
         )
 
       logger.debug('Found requests to poll', {
@@ -478,6 +478,25 @@ export class RequestService {
       // Poll each request
       for (const request of requestsToPoll) {
         checked++
+
+        // Phase One: Stranded 'Pending' Reconciliation
+        if (
+          request.status === 'pending' &&
+          request.notes &&
+          request.notes.includes('MIMIRR_MANUAL_INTERVENTION_REQUIRED')
+        ) {
+          try {
+            await db
+              .update(requests)
+              .set({ status: 'error' })
+              .where(eq(requests.id, request.id))
+
+            logger.info(`Self-healing stranded request ${request.id} from pending to error state.`)
+          } catch (error: any) {
+            logger.error('Failed to self-heal stranded request', { error, requestId: request.id })
+          }
+          continue;
+        }
 
         try {
           // Get book details to find foreignBookId
@@ -512,14 +531,47 @@ export class RequestService {
 
           // Self-healing fallback: If bookshelfId is missing, attempt to find it via the full library
           let currentBookshelfId = request.bookshelfId
-          if (!currentBookshelfId && request.foreignBookId) {
+          const searchForeignId = request.foreignBookId || request.bookId;
+
+          if (!currentBookshelfId && searchForeignId) {
              try {
                 const allBooks = await BookshelfService.getLibraryBooks(bookshelfConfig)
-                const matchedBook = allBooks.find((b: any) => String(b.foreignBookId) === String(request.foreignBookId))
+                const matchedBook = allBooks.find((b: any) => String(b.foreignBookId) === String(searchForeignId))
                 if (matchedBook && matchedBook.id) {
                     currentBookshelfId = matchedBook.id
+                    request.bookshelfId = currentBookshelfId // Sync in-memory object
                     logger.info(`Self-healed missing bookshelfId for request ${request.id}`, { newBookshelfId: currentBookshelfId })
-                    await db.update(requests).set({ bookshelfId: currentBookshelfId }).where(eq(requests.id, request.id))
+
+                    // Phase Two: Passive Lookup Success Cleanup
+                    // Clear the notes field and update the database with the new bookshelfId
+                    await db.update(requests).set({
+                      bookshelfId: currentBookshelfId,
+                      notes: null
+                    }).where(eq(requests.id, request.id))
+                } else {
+                   // Fallback to fuzzy matching by title and author
+                   // Ensure safe extraction of author name since book.author may be an object or a string
+                   let authorName = '';
+                   if (typeof book.author === 'string') {
+                       authorName = book.author;
+                   } else if (book.author && typeof book.author === 'object') {
+                       authorName = (book.author as any).name || (book.author as any).authorName || '';
+                   }
+
+                   const fuzzyMatch = await BookshelfService.checkBookInLibrary(bookshelfConfig, book.title, authorName);
+
+                   if (fuzzyMatch.exists && fuzzyMatch.bookshelfId) {
+                      currentBookshelfId = fuzzyMatch.bookshelfId;
+                      request.bookshelfId = currentBookshelfId; // Sync in-memory object
+                      logger.info(`Self-healed missing bookshelfId for request ${request.id} via fuzzy match`, { newBookshelfId: currentBookshelfId });
+
+                      // Phase Two: Passive Lookup Success Cleanup
+                      // Clear the notes field and update the database with the new bookshelfId
+                      await db.update(requests).set({
+                         bookshelfId: currentBookshelfId,
+                         notes: null
+                      }).where(eq(requests.id, request.id));
+                   }
                 }
              } catch (e) {
                 logger.error('Failed to self-heal missing bookshelfId', e)
@@ -528,6 +580,27 @@ export class RequestService {
 
           if (!currentBookshelfId) {
              logger.debug(`Skipping poll for request ${request.id} - no bookshelfId and self-heal failed`)
+
+             if (request.status === 'processing') {
+                 // Implement 10-minute grace period before throwing a terminal self-heal error
+                 // Fallback: processedAt -> requestedAt
+                 const referenceTime = request.processedAt ? new Date(request.processedAt) : new Date(request.requestedAt)
+                 const currentTime = new Date()
+                 const diffInMinutes = (currentTime.getTime() - referenceTime.getTime()) / (1000 * 60)
+
+                 if (diffInMinutes < 10) {
+                     logger.debug(`Request ${request.id} still in grace period (${diffInMinutes.toFixed(1)} mins), skipping terminal failure check`)
+                     continue
+                 }
+
+                 await db.update(requests).set({
+                     status: 'error',
+                     notes: 'MIMIRR_SYNC_FAILED: Book missing from Readarr (Self-heal failed)'
+                 }).where(eq(requests.id, request.id))
+
+                 logger.info(`Request ${request.id} transitioned to error: Self-heal failed after grace period`)
+             }
+
              continue
           }
 
@@ -592,6 +665,7 @@ export class RequestService {
           if (statusResult.status === 'available' && request.status !== 'available') {
             updateData.status = 'available'
             updateData.completedAt = new Date()
+            updateData.notes = null // Clear any SEARCHING or ERROR notes when book becomes available
             updated++
 
             details.push({
@@ -701,6 +775,19 @@ export class RequestService {
                     bookTitle: book.title,
                   })
                 }
+
+                // Trigger a search in Readarr for missing/released books and update notes
+                const SEARCHING_NOTE = 'MIMIRR_SEARCHING: Book is released; Mimirr has triggered a search in Readarr.';
+                if (currentBookshelfId && request.notes !== SEARCHING_NOTE && updateData.notes !== SEARCHING_NOTE) {
+                  updateData.notes = SEARCHING_NOTE
+                  logger.info('Triggering search for missing/released book', {
+                    requestId: request.id,
+                    bookTitle: book.title,
+                  })
+                  await BookshelfService.triggerBookSearch(bookshelfConfig, [currentBookshelfId]).catch((err) => {
+                    logger.error('Failed to trigger background search', { error: err })
+                  })
+                }
               }
             }
           } else if (statusResult.status === 'error') {
@@ -734,6 +821,24 @@ export class RequestService {
                  )
                  
                }
+            } else if (statusResult.error && statusResult.error.includes('Book not found in Bookshelf')) {
+              // Terminal error: Book is completely missing from Readarr after all fallback checks
+              if (request.status !== 'error') {
+                updateData.status = 'error'
+                updateData.notes = 'MIMIRR_SYNC_FAILED: Book missing from Readarr'
+                updated++
+                details.push({
+                  requestId: request.id,
+                  bookTitle: book.title,
+                  oldStatus: request.status,
+                  newStatus: 'error',
+                })
+
+                logger.info('Request transitioned to error: Book missing from Readarr', {
+                  requestId: request.id,
+                  bookTitle: book.title,
+                })
+              }
             } else {
               // Log error but keep as processing/approved - could be temporary
               logger.warn('Error checking request status', {

@@ -25,6 +25,7 @@ export async function checkBookInLibrary(
   status?: 'available' | 'downloading' | 'missing'
   bookFileCount?: number
   format?: string
+  bookshelfId?: number
 }> {
   try {
     const now = Date.now();
@@ -133,6 +134,7 @@ export async function checkBookInLibrary(
         status: 'available',
         bookFileCount,
         format,
+        bookshelfId: finalMatch.id,
       };
     }
 
@@ -141,6 +143,7 @@ export async function checkBookInLibrary(
         exists: true,
         status: 'downloading',
         bookFileCount: 0,
+        bookshelfId: finalMatch.id,
       };
     }
 
@@ -148,6 +151,7 @@ export async function checkBookInLibrary(
       exists: true,
       status: 'missing',
       bookFileCount: 0,
+        bookshelfId: finalMatch.id,
     };
   } catch (error) {
     logger.error('Failed to check book in Bookshelf library', {
@@ -637,5 +641,34 @@ export async function getAuthorBookStatus(
       bookshelfId: undefined,
       error: error instanceof Error ? error.message : 'Unknown error',
     };
+  }
+}
+
+/**
+ * Trigger a background book search in Bookshelf
+ * @param config - Bookshelf configuration
+ * @param bookIds - The book IDs to search for
+ */
+export async function triggerBookSearch(
+  config: BookshelfConfig,
+  bookIds: number[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const url = `/api/v1/command`;
+    logger.debug('Triggering BookSearch command in Bookshelf', { url, bookIds });
+
+    await fetchWithTimeout<any>(config, url, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'BookSearch',
+        bookIds
+      }),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    if (error.name === 'AbortError') return { success: false, error: 'Bookshelf Connection Timeout' };
+    logger.error('Failed to trigger book search in Bookshelf', { error, bookIds });
+    return { success: false, error: error.message };
   }
 }

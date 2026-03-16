@@ -111,7 +111,7 @@ async function postHandler(
             logger.warn('Bookshelf Circuit Breaker Triggered', { requestId, message: result.message })
             
             await RequestService.updateRequest(requestId, {
-              status: 'pending',
+              status: 'error',
               notes: result.message
             })
 
@@ -198,7 +198,7 @@ async function postHandler(
 
         // Update request status to error
         await RequestService.updateRequest(requestId, {
-          status: 'error' as any,
+          status: 'error',
           notes: `Failed to add to Bookshelf: ${error instanceof Error ? error.message : String(error)}`,
         })
 

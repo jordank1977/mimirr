@@ -201,10 +201,13 @@ export class BookService {
       const now = new Date()
 
       for (const cachedBook of cached) {
-        if (this.isCacheValid(cachedBook) && cachedBook.metadata) {
+        // Use the cache regardless of TTL for bulk UI requests to prevent
+        // unnecessary external API fetches that can result in 'Unknown Book' fallbacks.
+        // We only care if the metadata exists in the database.
+        if (cachedBook.metadata) {
           const book = JSON.parse(cachedBook.metadata) as Book
-          results.set(cachedBook.id, book)
-          cacheHits.add(cachedBook.id)
+          results.set(String(cachedBook.id), book)
+          cacheHits.add(String(cachedBook.id))
         }
       }
 
