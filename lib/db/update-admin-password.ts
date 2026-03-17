@@ -1,10 +1,18 @@
 import { drizzle } from 'drizzle-orm/libsql'
 import { createClient } from '@libsql/client'
 import { users } from './schema'
-import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
+import { hashPassword } from '@/lib/utils/crypto'
 
 async function updateAdminPassword() {
+  const newPassword = process.env.ADMIN_PASSWORD
+  if (!newPassword) {
+    console.error('Error: ADMIN_PASSWORD environment variable is required.')
+    console.error('Usage: ADMIN_PASSWORD=your_new_password npm run db:reset-admin')
+    process.exit(1)
+  }
+
+  const targetUsername = process.env.ADMIN_USERNAME || 'admin'
   const databaseUrl = process.env.DATABASE_URL || 'file:./config/db.sqlite'
 
   const client = createClient({
@@ -13,21 +21,25 @@ async function updateAdminPassword() {
 
   const db = drizzle(client)
 
-  const newPassword = 'admin123'
-  const passwordHash = await bcrypt.hash(newPassword, 12)
+  const passwordHash = await hashPassword(newPassword)
 
-  console.log('Updating admin password...')
+  console.log(`Updating password for user '${targetUsername}'...`)
 
-  await db
+  const result = await db
     .update(users)
     .set({
       passwordHash,
       updatedAt: new Date(),
     })
-    .where(eq(users.username, 'admin'))
+    .where(eq(users.username, targetUsername))
+    .returning()
 
-  console.log('✓ Admin password updated successfully!')
-  console.log(`✓ New credentials: admin / ${newPassword}`)
+  if (result.length === 0) {
+    console.error(`Error: User '${targetUsername}' not found in the database.`)
+    process.exit(1)
+  }
+
+  console.log('✓ Admin password successfully updated.')
 
   process.exit(0)
 }

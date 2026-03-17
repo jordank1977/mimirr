@@ -342,6 +342,22 @@ deploy:
       memory: 2G
 ```
 
+### Troubleshooting & Emergency Access
+
+If you have lost access to your admin account and are unable to recover it through normal means, you can execute the emergency password reset utility directly in the container environment or on the host machine.
+
+To reset the admin password, execute the following command:
+
+```bash
+ADMIN_PASSWORD=your_new_password npm run db:reset-admin
+```
+
+If your admin username is not `admin`, you can also pass `ADMIN_USERNAME` to specify the exact user account:
+
+```bash
+ADMIN_PASSWORD=your_new_password ADMIN_USERNAME=your_username npm run db:reset-admin
+```
+
 ## Security Best Practices
 
 1. **Strong JWT Secret**: Use 32+ character random string
