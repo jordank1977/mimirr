@@ -40,9 +40,23 @@ async function getHandler(
     let requestStatus = existingRequest[0]?.status
     let requestId = existingRequest[0]?.id
     let availableFormat: string | undefined
+    let mimirrState: 'Unowned' | 'Requested' | 'Processing' | 'Available' | 'Unreleased' = 'Unowned'
+
+    // Determine state from existing request
+    if (existingRequest[0]) {
+      if (requestStatus === 'pending') {
+        mimirrState = 'Requested'
+      } else if (requestStatus === 'approved' || requestStatus === 'processing' || requestStatus === 'Processing') {
+        mimirrState = 'Processing'
+      } else if (requestStatus === 'available' || requestStatus === 'Available') {
+        mimirrState = 'Available'
+      } else if (requestStatus === 'Unreleased') {
+        mimirrState = 'Unreleased'
+      }
+    }
 
     // If not requested, check Bookshelf library
-    if (!existingRequest[0]) {
+    if (!existingRequest[0] || mimirrState === 'Unowned') {
       const urlSetting = await db
         .select()
         .from(settings)
@@ -62,13 +76,23 @@ async function getHandler(
         try {
           const libraryStatus = await BookshelfService.checkBookInLibrary(
             { url: bookshelfUrl, apiKey: bookshelfApiKey },
+            id,
             book.title,
             book.author
           )
 
-          if (libraryStatus.exists && libraryStatus.status === 'available') {
-            requestStatus = 'available'
-            availableFormat = libraryStatus.format
+          if (libraryStatus.exists) {
+            if (libraryStatus.status === 'available' || libraryStatus.status === 'Available') {
+              requestStatus = 'Available'
+              mimirrState = 'Available'
+            } else if (libraryStatus.status === 'unreleased' || libraryStatus.status === 'Unreleased') {
+              requestStatus = 'Unreleased'
+              mimirrState = 'Unreleased'
+            } else if (libraryStatus.status === 'monitored' || libraryStatus.status === 'downloading' || libraryStatus.status === 'Processing' || libraryStatus.status === 'processing') {
+              requestStatus = 'Processing'
+              mimirrState = 'Processing'
+            }
+            // We omit `format` from `checkBookInLibrary` so this will be undefined until lazy-loaded
           }
         } catch (error) {
           // Silently fail - don't block book detail if Bookshelf check fails
@@ -83,6 +107,7 @@ async function getHandler(
       requestStatus,
       requestId,
       availableFormat,
+      mimirrState,
     }
 
     return NextResponse.json({ book: bookWithStatus })

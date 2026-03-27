@@ -90,6 +90,7 @@ export interface Book {
   seriesPosition?: number
   genres: string[]
   metadata?: any
+  mimirrState?: 'Unowned' | 'Requested' | 'Processing' | 'Available' | 'Unreleased'
   requestStatus?: 'pending' | 'approved' | 'declined' | 'available' | 'processing'
   requestId?: number
   availableFormat?: string

@@ -120,10 +120,21 @@ const createLogger = () => {
   return pino(pinoConfig, transport);
 }
 
-const pinoLogger = createLogger()
+// Next.js HMR Logger Cache
+// In development, Next.js clears the module cache on every reload, which can lead to
+// logger transport duplication and EventEmitter memory leaks. We cache the logger on globalThis.
+const globalForLogger = globalThis as unknown as { pinoLogger: pino.Logger | undefined }
+
+// Export the active pino logger instance
+const pinoLogger = globalForLogger.pinoLogger ?? createLogger()
 
 // Export the pino logger instance for dynamic level updates
 export { pinoLogger }
+
+// In development, preserve the logger instance across HMR reloads
+if (process.env.NODE_ENV !== 'production') {
+  globalForLogger.pinoLogger = pinoLogger
+}
 
 // Export wrapper to maintain backward compatibility
 // Global state for dynamic console log level (since we cannot easily

@@ -28,26 +28,23 @@ export function BookCard({ book }: BookCardProps) {
   // Filter out broad genres and show only specific ones
   const specificGenres = book.genres?.filter(g => !broadGenres.has(g)) || []
 
-  // Get status badge info
+  // Get status badge info using existing standard badge colors
   const getStatusBadge = () => {
-    if (!book.requestStatus) return null
+    if (!book.mimirrState || book.mimirrState === 'Unowned') return null
 
-    const statusConfig = {
-      pending: { label: 'Pending', color: 'bg-yellow-500' },
-      approved: { label: 'Approved', color: 'bg-green-500' },
-      declined: { label: 'Declined', color: 'bg-red-500' },
-      available: {
-        label: book.availableFormat ? `Available (${book.availableFormat})` : 'Available',
-        color: 'bg-blue-500'
-      },
-      processing: { label: 'Processing', color: 'bg-purple-500' },
+    // We only support 'Requested', 'Processing', 'Available', 'Unreleased' on the card
+    const statusConfig: Record<string, { label: string, className: string }> = {
+      Requested: { label: 'Requested', className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
+      Processing: { label: 'Processing', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+      Available: { label: 'Available', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+      Unreleased: { label: 'Unreleased', className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
     }
 
-    const config = statusConfig[book.requestStatus]
+    const config = statusConfig[book.mimirrState as string]
     if (!config) return null
 
     return (
-      <div className={`absolute top-2 right-2 ${config.color} text-white text-xs px-2 py-1 rounded-full font-medium shadow-lg`}>
+      <div className={`absolute top-2 right-2 ${config.className} text-xs px-2 py-1 rounded-full font-medium shadow-sm`}>
         {config.label}
       </div>
     )
@@ -57,7 +54,7 @@ export function BookCard({ book }: BookCardProps) {
     <Link href={`/book/${book.id}`}>
       <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer overflow-hidden">
         <div className="aspect-[2/3] relative bg-background-hover">
-          {book.coverImage ? (
+          {book.coverImage && book.coverImage !== 'null' && !book.coverImage.startsWith('/') ? (
             <Image
               src={book.coverImage}
               alt={book.title}

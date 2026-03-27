@@ -27,14 +27,16 @@ export default function BookPage({
   const [error, setError] = useState('')
   const [requesting, setRequesting] = useState(false)
   const [requestSuccess, setRequestSuccess] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<{ isBookshelfConfigured: boolean; isSyncCompleted: boolean } | null>(null)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        // Fetch book details and quality profiles in parallel
-        const [bookResponse, profilesResponse] = await Promise.all([
+        // Fetch book details, quality profiles, and sync status in parallel
+        const [bookResponse, profilesResponse, syncStatusResponse] = await Promise.all([
           fetch(`/api/books/${resolvedParams.id}`),
           fetch('/api/settings/quality-profiles'),
+          fetch('/api/settings/sync-status'),
         ])
 
         if (!bookResponse.ok) {
@@ -53,6 +55,11 @@ export default function BookPage({
             setSelectedProfileId(profilesData.profiles[0].id)
           }
         }
+
+        if (syncStatusResponse.ok) {
+          const syncStatusData = await syncStatusResponse.json()
+          setSyncStatus(syncStatusData)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load book')
       } finally {
@@ -65,6 +72,7 @@ export default function BookPage({
 
   const handleRequest = async () => {
     if (!book || selectedProfileId === null) return
+    if (syncStatus && (!syncStatus.isBookshelfConfigured || !syncStatus.isSyncCompleted)) return
 
     setRequesting(true)
     setError('')
@@ -125,6 +133,14 @@ export default function BookPage({
   }
 
   const getStatusInfo = () => {
+    if (syncStatus && (!syncStatus.isBookshelfConfigured || !syncStatus.isSyncCompleted)) {
+      return {
+        label: 'Library Sync Required',
+        color: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-600 dark:text-yellow-400',
+        message: 'Library sync required before requesting books. Please ask an admin to connect Readarr and run a scan.',
+      }
+    }
+
     if (!book.requestStatus) return null
 
     const statusConfig = {
@@ -161,7 +177,8 @@ export default function BookPage({
   }
 
   const statusInfo = getStatusInfo()
-  const canRequest = !book.requestStatus || book.requestStatus === 'declined'
+  const isLocked = syncStatus && (!syncStatus.isBookshelfConfigured || !syncStatus.isSyncCompleted)
+  const canRequest = (!book.requestStatus || book.requestStatus === 'declined') && !isLocked
 
   return (
     <div className="space-y-8">

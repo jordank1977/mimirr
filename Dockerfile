@@ -25,6 +25,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Build Next.js application
+RUN npm run build:migrate
 RUN npm run build
 
 # Production image, copy all the files and run next
@@ -50,6 +51,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/lib/db ./lib/db
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+COPY --from=builder /app/scripts/migrate.js ./scripts/migrate.js
 COPY --from=builder /app/node_modules ./node_modules
 
 RUN chmod +x ./scripts/docker-entrypoint.sh

@@ -1,6 +1,6 @@
 import { BookshelfConfig } from '@/types/bookshelf.types';
 
-const DEFAULT_TIMEOUT = 8000;
+const DEFAULT_TIMEOUT = 60000;
 
 /**
  * Universal fetch wrapper for Bookshelf (Readarr) API calls.

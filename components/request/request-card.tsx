@@ -18,10 +18,10 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
         <div className="flex gap-4">
           {/* Book Cover */}
           <div className="flex-shrink-0 w-16 h-24 relative bg-background-hover rounded overflow-hidden">
-            {request.bookCoverImage ? (
+            {request.bookCoverImage && request.bookCoverImage !== 'null' && !request.bookCoverImage.startsWith('/') ? (
               <Image
                 src={request.bookCoverImage}
-                alt={request.bookTitle}
+                alt={request.bookTitle || 'Unknown Book'}
                 fill
                 className="object-cover"
                 sizes="64px"
@@ -38,10 +38,10 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm truncate">
-                  {request.bookTitle}
+                  {request.bookTitle || 'Unknown Book'}
                 </h3>
                 <p className="text-xs text-foreground-muted truncate">
-                  {request.bookAuthor}
+                  {request.bookAuthor || 'Unknown Author'}
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -57,7 +57,7 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
             <div className="mt-2 space-y-1 text-xs text-foreground-muted">
               {request.requestedBy && (
                 <p className="font-medium text-foreground">
-                  Requested by: {request.requestedBy}
+                  Requested by: {request.requestedBy === 'system_sync' ? 'Manually Added' : request.requestedBy}
                 </p>
               )}
               <p>Requested: {requestDate}</p>

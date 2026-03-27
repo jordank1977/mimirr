@@ -2,7 +2,6 @@ import { db, userPreferences, type UserPreferences } from '@/lib/db'
 import { eq } from 'drizzle-orm'
 import { RequestService } from './request.service'
 import { BookService } from './book.service'
-import { BookinfoService } from './bookinfo.service'
 import type { Book, Author } from '@/types/bookinfo'
 import { logger } from '@/lib/utils/logger'
 
@@ -286,18 +285,15 @@ export async function updateUserPreferences(userId: number): Promise<void> {
         broadGenres: topGenres.filter(g => broadGenres.has(g))
       })
 
-      // Fetch books for each specific genre from API (100 per genre)
-      const genreBookPromises = specificGenres.map(genre =>
-        BookinfoService.getBooksByGenre(genre, 100)
-      )
-      const genreBookArrays = await Promise.all(genreBookPromises)
+      // TODO: Architect Readarr Lists integration for discovery features.
+      const genreBookArrays: any[] = []
 
       // Combine and deduplicate all genre books
       const allGenreBooks = Array.from(
         new Map(
-          genreBookArrays.flat().map(book => [book.id, book])
+          genreBookArrays.flat().map((book: any) => [book.id, book])
         ).values()
-      ).filter(book => !requestedBookIds.has(book.id))
+      ).filter((book: any) => !requestedBookIds.has(book.id))
 
       logger.info('Genre books fetched', {
         userId,
@@ -385,7 +381,7 @@ export async function updateUserPreferences(userId: number): Promise<void> {
 
       for (const { book, matchScore } of scoredBooks) {
         // Count how many specific genres this book has
-        const bookSpecificGenres = book.genres?.filter(g => !broadGenres.has(g) && specificGenres.includes(g)) || []
+        const bookSpecificGenres = book.genres?.filter((g: string) => !broadGenres.has(g) && specificGenres.includes(g)) || []
         const hasSpecificGenres = bookSpecificGenres.length > 0
 
         for (const authorName of book.authors || [book.author]) {
@@ -401,7 +397,7 @@ export async function updateUserPreferences(userId: number): Promise<void> {
             existing.avgRating = existing.totalRating / existing.bookCount
             existing.totalMatchScore += matchScore
             existing.avgMatchScore = existing.totalMatchScore / existing.bookCount
-            book.genres?.forEach(g => existing.genres.add(g))
+            book.genres?.forEach((g: string) => existing.genres.add(g))
           } else {
             authorMap.set(authorName, {
               name: authorName,
@@ -454,8 +450,8 @@ export async function updateUserPreferences(userId: number): Promise<void> {
       const recommendedAuthors: Author[] = []
       for (const authorData of topAuthors) {
         try {
-          // Search for the author to get their image
-          const searchResults = await BookinfoService.searchBooks(authorData.name, 1)
+          // TODO: Architect Readarr Lists integration for discovery features.
+          const searchResults: any[] = []
 
           // Create author object with or without image
           const author: Author = {
@@ -590,48 +586,8 @@ export async function getPopularBooksForUser(userId: number, limit: number = 10)
       return []
     }
 
-    // Construct search query using user's top genres
-    const query = `${topGenres.slice(0, 2).join(' ')} bestseller`
-    
-    // Fetch books using search instead of generic popular books
-    const popularBooks = await BookService.searchBooks(query, 50)
-    const requestedBookIds = await getRequestedBookIds(userId)
-
-    // Filter by genre match and exclude already requested (safety net)
-    const matchedBooks = popularBooks.filter(book => {
-      if (requestedBookIds.has(book.id)) return false
-      if (!book.genres || book.genres.length === 0) return false
-      return book.genres.some(genre => topGenres.includes(genre))
-    })
-
-    // Score by genre match strength with mood and pace bonuses
-    const genreWeights = JSON.parse(prefs.genreWeights) as GenreWeight
-    const topMoods = JSON.parse(prefs.topMoods) as string[]
-    const topPaces = JSON.parse(prefs.topPaces) as string[]
-    
-    const scoredBooks = matchedBooks.map(book => {
-      const genreMatchScore = book.genres
-        .map(g => genreWeights[g] || 0)
-        .reduce((sum, w) => sum + w, 0) / book.genres.length
-
-      // Add mood and pace bonuses
-      let moodPaceBonus = 0
-      for (const genre of book.genres) {
-        if (topMoods.includes(genre)) {
-          moodPaceBonus += 0.5
-        }
-        if (topPaces.includes(genre)) {
-          moodPaceBonus += 0.5
-        }
-      }
-
-      const matchScore = genreMatchScore + moodPaceBonus
-      return { book, matchScore }
-    })
-
-    scoredBooks.sort((a, b) => b.matchScore - a.matchScore)
-
-    return scoredBooks.slice(0, limit).map(s => s.book)
+    // TODO: Architect Readarr Lists integration for discovery features.
+    return []
   } catch (error) {
     logger.error('Failed to get popular books for user', { error, userId })
     return []
@@ -653,48 +609,8 @@ export async function getNewBooksForUser(userId: number, limit: number = 10): Pr
       return []
     }
 
-    // Construct search query using user's top genres and current year
-    const currentYear = new Date().getFullYear();
-    const query = `${topGenres.slice(0, 2).join(' ')} new release ${currentYear}`;
-    
-    // Fetch books using search instead of generic new releases
-    const newReleases = await BookService.searchBooks(query, 50)
-    const requestedBookIds = await getRequestedBookIds(userId)
-
-    const matchedBooks = newReleases.filter(book => {
-      if (requestedBookIds.has(book.id)) return false
-      if (!book.genres || book.genres.length === 0) return false
-      return book.genres.some(genre => topGenres.includes(genre))
-    })
-
-    // Same scoring logic as popular books with mood and pace bonuses
-    const genreWeights = JSON.parse(prefs.genreWeights) as GenreWeight
-    const topMoods = JSON.parse(prefs.topMoods) as string[]
-    const topPaces = JSON.parse(prefs.topPaces) as string[]
-    
-    const scoredBooks = matchedBooks.map(book => {
-      const genreMatchScore = book.genres
-        .map(g => genreWeights[g] || 0)
-        .reduce((sum, w) => sum + w, 0) / book.genres.length
-
-      // Add mood and pace bonuses
-      let moodPaceBonus = 0
-      for (const genre of book.genres) {
-        if (topMoods.includes(genre)) {
-          moodPaceBonus += 0.5
-        }
-        if (topPaces.includes(genre)) {
-          moodPaceBonus += 0.5
-        }
-      }
-
-      const matchScore = genreMatchScore + moodPaceBonus
-      return { book, matchScore }
-    })
-
-    scoredBooks.sort((a, b) => b.matchScore - a.matchScore)
-
-    return scoredBooks.slice(0, limit).map(s => s.book)
+    // TODO: Architect Readarr Lists integration for discovery features.
+    return []
   } catch (error) {
     logger.error('Failed to get new books for user', { error, userId })
     return []
@@ -723,7 +639,8 @@ export async function getAuthorRecommendations(userId: number, limit: number = 1
 
     for (const author of topAuthors) {
       try {
-        const books = await BookService.searchBooks(author, 10)
+        // TODO: Architect Readarr Lists integration for discovery features.
+        const books: Book[] = []
 
         // Filter to books actually by this author (case-insensitive match)
         const authorBooksByName = books.filter(book =>

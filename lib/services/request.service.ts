@@ -360,6 +360,9 @@ export class RequestService {
         return {
           foreignBookId,
           status,
+          bookshelfId: book.id,
+          title: book.title,
+          authorName: book.author?.authorName || book.author || '',
         }
       })
 
@@ -370,7 +373,12 @@ export class RequestService {
             .values(mappedData)
             .onConflictDoUpdate({
               target: libraryBooks.foreignBookId,
-              set: { status: sql`excluded.status` }
+              set: {
+                status: sql`excluded.status`,
+                bookshelfId: sql`excluded.bookshelf_id`,
+                title: sql`excluded.title`,
+                authorName: sql`excluded.author_name`
+              }
             })
         } catch (dbError: any) {
           logger.error('Database constraint error during library sync', { error: dbError });
@@ -380,7 +388,12 @@ export class RequestService {
              try {
                 await db.insert(libraryBooks).values([item]).onConflictDoUpdate({
                    target: libraryBooks.foreignBookId,
-                   set: { status: sql`excluded.status` }
+                   set: {
+                     status: sql`excluded.status`,
+                     bookshelfId: sql`excluded.bookshelf_id`,
+                     title: sql`excluded.title`,
+                     authorName: sql`excluded.author_name`
+                   }
                 });
                 successCount++;
              } catch (singleError: any) {
@@ -405,11 +418,11 @@ export class RequestService {
   }
 
   /**
-   * Poll Bookshelf for status of all "processing" requests
-   * Updates request status to "available" when downloaded
-   * Updates lastPolledAt timestamp
+   * Target Poll Active Requests (Sniper Polling)
+   * Lightweight poll that strictly checks explicitly known bookshelfIds
+   * acting as a safety net for missed webhooks.
    */
-  static async pollProcessingRequests(): Promise<{
+  static async targetPollActiveRequests(): Promise<{
     checked: number
     updated: number
     errors: number
@@ -421,7 +434,7 @@ export class RequestService {
     }>
   }> {
     try {
-      logger.debug('Starting polling of processing requests')
+      logger.debug('Starting sniper polling of active requests')
 
       // Get Bookshelf config from database
       const urlSetting = await db
@@ -449,12 +462,12 @@ export class RequestService {
         apiKey: bookshelfApiKey,
       }
 
-      // Get all pending, processing, approved, and error requests
+      // Get active requests (pending, processing, approved, downloading, error)
       const requestsToPoll = await db
         .select()
         .from(requests)
         .where(
-          sql`${requests.status} IN ('pending', 'processing', 'approved', 'error')`
+          sql`${requests.status} IN ('pending', 'processing', 'approved', 'downloading', 'error')`
         )
 
       logger.debug('Found requests to poll', {
@@ -474,6 +487,15 @@ export class RequestService {
         oldStatus: string
         newStatus: string
       }> = []
+
+      // Pre-fetch all books in bulk to prevent N+1 queries and rate limiting
+      const bookIdsToFetch = Array.from(new Set(requestsToPoll.map(r => r.bookId)))
+      let preFetchedBooks = new Map<string, any>()
+      try {
+        preFetchedBooks = await BookService.getBooksByIds(bookIdsToFetch)
+      } catch (prefetchError) {
+        logger.error('Failed to pre-fetch books for polling', { error: prefetchError })
+      }
 
       // Poll each request
       for (const request of requestsToPoll) {
@@ -500,7 +522,16 @@ export class RequestService {
 
         try {
           // Get book details to find foreignBookId
-          let book = await BookService.getBookById(request.bookId)
+          let book = preFetchedBooks.get(request.bookId)
+
+          if (!book) {
+            logger.warn('Book missing from pre-fetch map or fetch failed, skipping request', {
+              requestId: request.id,
+              bookId: request.bookId,
+            });
+            errors++;
+            continue;
+          }
 
           // Automatic "Unknown Book" Recovery
           if (book && (book.title === 'Unknown Book' || !book.title) && request.foreignBookId) {
@@ -521,7 +552,7 @@ export class RequestService {
           }
 
           if (!book) {
-            logger.error('Book not found for request', {
+            logger.error('Book not found for request (after recovery attempt)', {
               requestId: request.id,
               bookId: request.bookId,
             })
@@ -558,7 +589,7 @@ export class RequestService {
                        authorName = (book.author as any).name || (book.author as any).authorName || '';
                    }
 
-                   const fuzzyMatch = await BookshelfService.checkBookInLibrary(bookshelfConfig, book.title, authorName);
+                   const fuzzyMatch = await BookshelfService.checkBookInLibrary(bookshelfConfig, searchForeignId, book.title, authorName);
 
                    if (fuzzyMatch.exists && fuzzyMatch.bookshelfId) {
                       currentBookshelfId = fuzzyMatch.bookshelfId;
@@ -879,6 +910,11 @@ export class RequestService {
              } catch (healError) {
                 logger.error('Failed to apply Self-Healing Sync', healError);
              }
+          } else if (error.name === 'AbortError' || error.message?.includes('operation was aborted')) {
+             logger.warn('Polling operation aborted for request, continuing to next', {
+               requestId: request.id,
+               error: error.message
+             });
           } else {
              logger.error('Failed to poll request', {
                error,
@@ -886,21 +922,19 @@ export class RequestService {
              })
           }
           errors++
+          continue
         }
       }
 
-      logger.info('Polling completed', {
+      logger.info('Sniper polling completed', {
         checked,
         updated,
         errors,
       })
 
-      // Sync Readarr library after polling
-      await RequestService.syncReadarrLibrary(bookshelfConfig)
-
       return { checked, updated, errors, details }
     } catch (error) {
-      logger.error('Failed to poll processing requests', { error })
+      logger.error('Failed to execute sniper polling', { error })
       throw error
     }
   }

@@ -3,7 +3,6 @@ import { withLogging } from '@/lib/middleware/logging.middleware'
 import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { db, bookCache, requests } from '@/lib/db'
 import { eq, or } from 'drizzle-orm'
-import { BookinfoService } from '@/lib/services/bookinfo.service'
 import { BookService } from '@/lib/services/book.service'
 import { logger } from '@/lib/utils/logger'
 
@@ -32,37 +31,28 @@ async function postHandler(request: NextRequest) {
     await db.delete(bookCache).where(eq(bookCache.id, foreignBookId))
     logger.info('Scrub Tool: Deleted from book_cache', { foreignBookId })
 
-    // 2. Force a metadata refresh from BookinfoService (Hardcover)
+    // 2. Force a metadata refresh from Readarr
     try {
-      // Use AbortController for timeout
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 8000)
+      const freshBook = await BookService.getBookById(foreignBookId)
 
-      try {
-        const freshBook = await BookinfoService.getBookById(foreignBookId, controller.signal)
+      if (freshBook) {
+        // cacheBook is called internally by getBookById
+        logger.info('Scrub Tool: Fresh metadata cached', { foreignBookId, title: freshBook.title })
 
-        if (freshBook) {
-          // Cache the freshly fetched book
-          await BookService.cacheBook(freshBook)
-          logger.info('Scrub Tool: Fresh metadata cached', { foreignBookId, title: freshBook.title })
-
-          return NextResponse.json({
-            message: 'Scrub successful. Book metadata refreshed.',
-            book: {
-              id: freshBook.id,
-              title: freshBook.title,
-              author: freshBook.author
-            }
-          })
-        } else {
-          logger.warn('Scrub Tool: Book not found upstream after cache deletion', { foreignBookId })
-          return NextResponse.json(
-            { error: 'Book deleted from cache, but failed to fetch fresh metadata from upstream.' },
-            { status: 404 }
-          )
-        }
-      } finally {
-        clearTimeout(timeoutId)
+        return NextResponse.json({
+          message: 'Scrub successful. Book metadata refreshed.',
+          book: {
+            id: freshBook.id,
+            title: freshBook.title,
+            author: freshBook.author
+          }
+        })
+      } else {
+        logger.warn('Scrub Tool: Book not found upstream after cache deletion', { foreignBookId })
+        return NextResponse.json(
+          { error: 'Book deleted from cache, but failed to fetch fresh metadata from upstream.' },
+          { status: 404 }
+        )
       }
     } catch (fetchError: any) {
       logger.error('Scrub Tool: Failed to fetch fresh metadata', { foreignBookId, error: fetchError.message })

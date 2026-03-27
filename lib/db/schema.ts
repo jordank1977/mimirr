@@ -27,7 +27,7 @@ export const requests = sqliteTable('requests', {
     .references(() => users.id, { onDelete: 'cascade' }),
   bookId: text('book_id').notNull(), // Goodreads work ID
   status: text('status', {
-    enum: ['pending', 'approved', 'declined', 'available', 'processing', 'error'],
+    enum: ['pending', 'approved', 'declined', 'available', 'processing', 'error', 'Available', 'Processing', 'Unreleased'],
   })
     .notNull()
     .default('pending'),
@@ -62,7 +62,6 @@ export const bookCache = sqliteTable('book_cache', {
   moods: text('moods'), // JSON stringified array
   paces: text('paces'), // JSON stringified array
   rating: text('rating'), // Store as text for precision
-  metadata: text('metadata'), // Full JSON of Hardcover response
   cachedAt: integer('cached_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -167,6 +166,25 @@ export const libraryBooks = sqliteTable('library_books', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   foreignBookId: text('foreign_book_id').notNull().unique(),
   status: text('status').notNull(),
+  bookshelfId: integer('bookshelf_id'),
+  title: text('title').notNull().default(''),
+  authorName: text('author_name').notNull().default(''),
+})
+
+// Sync jobs table
+export const syncJobs = sqliteTable('sync_jobs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  status: text('status', {
+    enum: ['idle', 'scanning', 'complete', 'error'],
+  }).notNull().default('idle'),
+  totalBooks: integer('total_books').notNull().default(0),
+  processedBooks: integer('processed_books').notNull().default(0),
+  currentLogMessage: text('current_log_message'),
+  activityLog: text('activity_log'), // JSON stringified array of logs/partial warnings
+  startedAt: integer('started_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
 })
 
 // Type exports for use in application
@@ -188,3 +206,5 @@ export type QualityProfileConfig = typeof qualityProfileConfigs.$inferSelect
 export type NewQualityProfileConfig = typeof qualityProfileConfigs.$inferInsert
 export type LibraryBook = typeof libraryBooks.$inferSelect
 export type NewLibraryBook = typeof libraryBooks.$inferInsert
+export type SyncJob = typeof syncJobs.$inferSelect
+export type NewSyncJob = typeof syncJobs.$inferInsert

@@ -1,4 +1,4 @@
-CREATE TABLE `book_cache` (
+CREATE TABLE IF NOT EXISTS `book_cache` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
 	`author` text,
@@ -10,13 +10,24 @@ CREATE TABLE `book_cache` (
 	`publisher` text,
 	`page_count` integer,
 	`genres` text,
+	`moods` text,
+	`paces` text,
 	`rating` text,
-	`metadata` text,
 	`cached_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`last_accessed_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `notification_settings` (
+CREATE TABLE IF NOT EXISTS `library_books` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`foreign_book_id` text NOT NULL,
+	`status` text NOT NULL,
+	`bookshelf_id` integer,
+	`title` text DEFAULT '' NOT NULL,
+	`author_name` text DEFAULT '' NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `library_books_foreign_book_id_unique` ON `library_books` (`foreign_book_id`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `notification_settings` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`discord_enabled` integer DEFAULT false NOT NULL,
 	`discord_webhook_url` text,
@@ -31,7 +42,7 @@ CREATE TABLE `notification_settings` (
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `notifications` (
+CREATE TABLE IF NOT EXISTS `notifications` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`user_id` integer NOT NULL,
 	`type` text NOT NULL,
@@ -43,7 +54,7 @@ CREATE TABLE `notifications` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `quality_profile_configs` (
+CREATE TABLE IF NOT EXISTS `quality_profile_configs` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`profile_id` integer NOT NULL,
 	`profile_name` text NOT NULL,
@@ -53,8 +64,8 @@ CREATE TABLE `quality_profile_configs` (
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `quality_profile_configs_profile_id_unique` ON `quality_profile_configs` (`profile_id`);--> statement-breakpoint
-CREATE TABLE `requests` (
+CREATE UNIQUE INDEX IF NOT EXISTS `quality_profile_configs_profile_id_unique` ON `quality_profile_configs` (`profile_id`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `requests` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`user_id` integer NOT NULL,
 	`book_id` text NOT NULL,
@@ -74,7 +85,7 @@ CREATE TABLE `requests` (
 	FOREIGN KEY (`processed_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE TABLE `settings` (
+CREATE TABLE IF NOT EXISTS `settings` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`key` text NOT NULL,
 	`value` text NOT NULL,
@@ -84,14 +95,27 @@ CREATE TABLE `settings` (
 	FOREIGN KEY (`updated_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `settings_key_unique` ON `settings` (`key`);--> statement-breakpoint
-CREATE TABLE `user_preferences` (
+CREATE UNIQUE INDEX IF NOT EXISTS `settings_key_unique` ON `settings` (`key`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `sync_jobs` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`status` text DEFAULT 'idle' NOT NULL,
+	`total_books` integer DEFAULT 0 NOT NULL,
+	`processed_books` integer DEFAULT 0 NOT NULL,
+	`current_log_message` text,
+	`activity_log` text,
+	`started_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`completed_at` integer
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `user_preferences` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`user_id` integer NOT NULL,
 	`genre_weights` text NOT NULL,
 	`author_preferences` text NOT NULL,
 	`top_genres` text NOT NULL,
 	`top_authors` text NOT NULL,
+	`top_moods` text NOT NULL,
+	`top_paces` text NOT NULL,
 	`total_requests` integer DEFAULT 0 NOT NULL,
 	`last_request_date` integer,
 	`recommended_popular_books` text,
@@ -102,8 +126,8 @@ CREATE TABLE `user_preferences` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `user_preferences_user_id_unique` ON `user_preferences` (`user_id`);--> statement-breakpoint
-CREATE TABLE `users` (
+CREATE UNIQUE INDEX IF NOT EXISTS `user_preferences_user_id_unique` ON `user_preferences` (`user_id`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `users` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`username` text NOT NULL,
 	`email` text NOT NULL,
@@ -116,6 +140,5 @@ CREATE TABLE `users` (
 	`last_login_at` integer
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);--> statement-breakpoint
-CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
-INSERT INTO notification_settings (id) VALUES (1);
+CREATE UNIQUE INDEX IF NOT EXISTS `users_username_unique` ON `users` (`username`);--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS `users_email_unique` ON `users` (`email`);

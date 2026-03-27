@@ -12,7 +12,7 @@ export function BookDetails({ book }: BookDetailsProps) {
       {/* Cover Image */}
       <div className="md:col-span-1">
         <div className="aspect-[2/3] relative bg-background-hover rounded-lg overflow-hidden">
-          {book.coverImage ? (
+          {book.coverImage && book.coverImage !== 'null' && !book.coverImage.startsWith('/') ? (
             <Image
               src={book.coverImage}
               alt={book.title}

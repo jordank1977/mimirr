@@ -7,7 +7,7 @@ import { NotificationService } from '@/lib/services/notification.service'
 import * as RecommendationService from '@/lib/services/recommendation.service'
 import { createRequestSchema, createOnlyThisBookRequestSchema } from '@/lib/utils/validation'
 import { logger } from '@/lib/utils/logger'
-import { db, users, settings } from '@/lib/db'
+import { db, users, settings, syncJobs } from '@/lib/db'
 import { eq } from 'drizzle-orm'
 import { withLogging } from '@/lib/middleware/logging.middleware'
 
@@ -43,6 +43,41 @@ async function getHandler(request: NextRequest) {
 async function postHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
+    // Ensure Bookshelf is configured and a sync has completed at least once before allowing requests
+    const urlSetting = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, 'bookshelf_url'))
+      .limit(1)
+
+    const apiKeySetting = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, 'bookshelf_api_key'))
+      .limit(1)
+
+    const isBookshelfConfigured = urlSetting.length > 0 && apiKeySetting.length > 0 && !!urlSetting[0].value && !!apiKeySetting[0].value
+
+    if (!isBookshelfConfigured) {
+      return NextResponse.json(
+        { error: 'Bookshelf must be connected before requesting books. Please ask an admin to configure it.' },
+        { status: 403 }
+      )
+    }
+
+    const syncCheck = await db
+      .select()
+      .from(syncJobs)
+      .where(eq(syncJobs.status, 'complete'))
+      .limit(1)
+
+    if (syncCheck.length === 0) {
+      return NextResponse.json(
+        { error: 'Library sync required before requesting books. Please ask an admin to run a scan.' },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
 
     // Check if this is an Only This Book request
@@ -63,6 +98,16 @@ async function postHandler(request: NextRequest) {
         notes: validatedData.notes,
         monitoringOption: 'specificBook'
       })
+
+      // The Request Transition: Mimirr officially added the book to Readarr.
+      // Remove the temporary search cache entry for this foreignBookId.
+      const { bookCache } = await import('@/lib/db')
+      try {
+        await db.delete(bookCache).where(eq(bookCache.id, validatedData.foreignBookId))
+        logger.info('Cleaned up temporary cache for newly added book', { foreignBookId: validatedData.foreignBookId })
+      } catch (cacheErr) {
+        logger.error('Failed to clean up temporary cache', { error: cacheErr, foreignBookId: validatedData.foreignBookId })
+      }
       
       return NextResponse.json({ request: newRequest }, { status: 201 })
     } else {

@@ -10,7 +10,7 @@ export function AuthorCard({ author }: AuthorCardProps) {
   return (
     <Card className="overflow-hidden hover:ring-2 hover:ring-primary transition-all cursor-pointer group">
       <div className="aspect-[3/4] relative bg-muted">
-        {author.imageUrl ? (
+        {author.imageUrl && author.imageUrl !== 'null' ? (
           <Image
             src={author.imageUrl}
             alt={author.name}

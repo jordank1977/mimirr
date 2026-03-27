@@ -29,6 +29,21 @@ async function postHandler(
       return NextResponse.json({ error: 'Request not found' }, { status: 404 })
     }
 
+    // Hard Stop Safety Guard: Prevent system-imported ghost imports from being manually approved
+    const systemUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, 'system_sync'))
+      .limit(1)
+
+    if (systemUser.length > 0 && existingRequest.userId === systemUser[0].id) {
+      logger.warn('Attempted to manually approve a system-imported record', { requestId })
+      return NextResponse.json(
+        { error: 'System-imported records cannot be manually re-approved for push to Readarr.' },
+        { status: 400 }
+      )
+    }
+
     // Get book details
     const book = await BookService.getBookById(existingRequest.bookId)
     if (!book) {
@@ -151,6 +166,16 @@ async function postHandler(
           requestId,
           bookshelfId: result.bookshelfId,
         })
+
+        // The Request Transition: Mimirr officially added the book to Readarr.
+        // Remove the temporary search cache entry for this foreignBookId.
+        const { bookCache } = await import('@/lib/db')
+        try {
+          await db.delete(bookCache).where(eq(bookCache.id, result.foreignBookId || book.id))
+          logger.info('Cleaned up temporary cache for newly added book', { foreignBookId: result.foreignBookId || book.id })
+        } catch (cacheErr) {
+          logger.error('Failed to clean up temporary cache', { error: cacheErr, foreignBookId: result.foreignBookId || book.id })
+        }
 
         // Get requesting user's details for notification
         const requestingUser = await db

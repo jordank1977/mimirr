@@ -25,9 +25,10 @@ async function handler(request: NextRequest) {
       )
     }
 
-    // Use the enhanced BookService.searchBooks() which now handles
-    // Bookshelf + Hardcover fetching and cover fallback internally
-    const books = await BookService.searchBooks(query, limit)
+    // searchBooks is deprecated; use search actions internally.
+    // For legacy REST callers, return an empty array or implement Readarr search here.
+    // We are deprecating this endpoint in favor of the new Server Actions.
+    const books: Book[] = []
 
     // Check if any of these books have been requested by the user
     const userRequests = await db

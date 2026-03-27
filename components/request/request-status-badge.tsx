@@ -1,10 +1,10 @@
 import { cn } from '@/lib/utils/cn'
 
 interface RequestStatusBadgeProps {
-  status: 'pending' | 'approved' | 'declined' | 'available' | 'processing' | 'error'
+  status: 'pending' | 'approved' | 'declined' | 'available' | 'processing' | 'error' | 'Available' | 'Processing' | 'Unreleased'
 }
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string, className: string }> = {
   pending: {
     label: 'Pending',
     className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -21,9 +21,21 @@ const statusConfig = {
     label: 'Available',
     className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   },
+  Available: {
+    label: 'Available',
+    className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  },
   processing: {
     label: 'Processing',
     className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+  },
+  Processing: {
+    label: 'Processing',
+    className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+  },
+  Unreleased: {
+    label: 'Unreleased',
+    className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
   },
   error: {
     label: 'Error',

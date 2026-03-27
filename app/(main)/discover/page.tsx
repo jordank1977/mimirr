@@ -21,7 +21,7 @@ export default function DiscoverPage() {
   const [searchResults, setSearchResults] = useState<Book[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
-  const [searching, setSearching] = useState(false)
+  const [searchState, setSearchState] = useState<'idle' | 'searching' | 'loading-details' | 'success' | 'error'>('idle')
   const [hasSearched, setHasSearched] = useState(false)
 
   // Sync search state with URL params on mount and when params change
@@ -32,21 +32,62 @@ export default function DiscoverPage() {
       setHasSearched(true)
       // Perform search
       const performSearch = async () => {
-        setSearching(true)
+        const CACHE_KEY = `mimirr_search_${query}`
+
+        // Try to read from session storage first
         try {
-          const response = await fetch(
-            `/api/books/search?q=${encodeURIComponent(query)}`
-          )
-          if (!response.ok) {
-            throw new Error('Search failed')
+          const cachedData = sessionStorage.getItem(CACHE_KEY)
+          if (cachedData) {
+            const parsedData = JSON.parse(cachedData)
+            setSearchResults(parsedData)
+            setSearchState('success')
+            return
           }
-          const data = await response.json()
-          setSearchResults(data.books || [])
+        } catch (e) {
+          console.warn('Failed to parse cached search data', e)
+        }
+
+        setSearchState('searching')
+        setSearchResults([])
+        try {
+          const { searchReadarrBooks, fetchReadarrBookDetails } = await import('@/app/actions/search')
+
+          // Step 1: Initial Search
+          const initialBooks = await searchReadarrBooks(query)
+
+          if (!initialBooks || initialBooks.length === 0) {
+            setSearchState('success')
+            try {
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify([]))
+            } catch (e) {
+              console.warn('Failed to cache search data due to storage limit', e)
+            }
+            return
+          }
+
+          // Step 2: Fetch Details
+          setSearchState('loading-details')
+
+          const detailedBooks = await Promise.all(
+            initialBooks.map(async (book: any) => {
+              return await fetchReadarrBookDetails(book)
+            })
+          )
+
+          setSearchResults(detailedBooks as any)
+          setSearchState('success')
+
+          // Cache the final results
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(detailedBooks))
+          } catch (e) {
+            console.warn('Failed to cache search data due to storage limit', e)
+          }
+
         } catch (error) {
           console.error('Search error:', error)
           setSearchResults([])
-        } finally {
-          setSearching(false)
+          setSearchState('error')
         }
       }
       performSearch()
@@ -54,6 +95,7 @@ export default function DiscoverPage() {
       // Clear search state when no query param
       setSearchQuery('')
       setSearchResults([])
+      setSearchState('idle')
       setHasSearched(false)
     }
   }, [searchParams])
@@ -132,8 +174,8 @@ export default function DiscoverPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1"
             />
-            <Button type="submit" disabled={searching || !searchQuery.trim()}>
-              {searching ? 'Searching...' : 'Search'}
+            <Button type="submit" disabled={searchState === 'searching' || searchState === 'loading-details' || !searchQuery.trim()}>
+              {searchState === 'searching' || searchState === 'loading-details' ? 'Searching...' : 'Search'}
             </Button>
             {hasSearched && (
               <Button type="button" variant="outline" onClick={clearSearch}>
@@ -151,7 +193,7 @@ export default function DiscoverPage() {
             <CardHeader>
               <CardTitle className="text-2xl">
                 Search Results
-                {!searching && searchResults.length > 0 && (
+                {searchState === 'success' && searchResults.length > 0 && (
                   <span className="text-foreground-muted text-base ml-2 font-normal">
                     ({searchResults.length} {searchResults.length === 1 ? 'book' : 'books'} found)
                   </span>
@@ -159,11 +201,22 @@ export default function DiscoverPage() {
               </CardTitle>
             </CardHeader>
           </Card>
-          {searching ? (
+          {searchState === 'searching' && (
             <div className="text-center py-12">
-              <p className="text-foreground-muted">Searching...</p>
+              <p className="text-foreground-muted">Searching Readarr...</p>
             </div>
-          ) : (
+          )}
+          {searchState === 'loading-details' && (
+            <div className="text-center py-12">
+              <p className="text-foreground-muted animate-pulse">Pulling in publishers and descriptions...</p>
+            </div>
+          )}
+          {searchState === 'error' && (
+            <div className="text-center py-12">
+              <p className="text-red-500">Something went wrong while searching. Please try again.</p>
+            </div>
+          )}
+          {searchState === 'success' && (
             <BookGrid
               books={searchResults}
               emptyMessage="No books found. Try a different search term."

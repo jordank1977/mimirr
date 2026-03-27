@@ -7,8 +7,9 @@ chown -R nextjs:nodejs /app/config
 
 # Switch to nextjs user and sync database schema
 echo "Syncing database schema as nextjs user..."
-gosu nextjs npx drizzle-kit push --force || {
-  echo "Warning: Schema push failed, but continuing startup..."
+gosu nextjs node scripts/migrate.js || {
+  echo "Error: Database schema migration failed."
+  exit 1
 }
 
 echo "Starting application as nextjs user..."

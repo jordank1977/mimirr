@@ -98,6 +98,11 @@ function SortableProfile({ profile, onToggle }: SortableProfileProps) {
   )
 }
 
+// Helper to get secret key for API requests
+function getAdminKey() {
+  return typeof window !== 'undefined' ? localStorage.getItem('mimirr_admin_key') || '' : ''
+}
+
 export default function BookshelfSettingsPage() {
   const [formData, setFormData] = useState({
     url: '',
@@ -123,7 +128,30 @@ export default function BookshelfSettingsPage() {
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   const [showApiKeyHelp, setShowApiKeyHelp] = useState(false)
 
+  // Sync Job State
+  const [adminKey, setAdminKey] = useState('')
+  const [syncJob, setSyncJob] = useState<any>(null)
+  const [startingScan, setStartingScan] = useState(false)
+
+  useEffect(() => {
+    setAdminKey(getAdminKey())
+  }, [])
+
+  const handleAdminKeyChange = (val: string) => {
+    setAdminKey(val)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mimirr_admin_key', val)
+    }
+  }
+
   const hasUnsavedChanges = formData.url !== initialFormData.url || formData.apiKey !== initialFormData.apiKey
+
+  // Reset test status when form data changes
+  useEffect(() => {
+    if (hasUnsavedChanges && testStatus !== null) {
+      setTestStatus(null);
+    }
+  }, [formData, hasUnsavedChanges]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -149,6 +177,73 @@ export default function BookshelfSettingsPage() {
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges])
+
+  // Polling for sync status
+  useEffect(() => {
+    if (!adminKey) return;
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch('/api/admin/readarr/scan-status', {
+          headers: { 'x-mimirr-admin-key': adminKey }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.job) {
+            setSyncJob(data.job)
+          }
+        }
+      } catch (e) {
+        // Ignore errors to not spam console
+      }
+    }
+
+    // Fetch immediately on mount
+    fetchStatus()
+
+    // Setup rapid polling
+    const interval = setInterval(() => {
+      // Only poll if a scan might be running, or we don't know yet
+      if (!syncJob || syncJob.status === 'scanning') {
+        fetchStatus()
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [adminKey, syncJob?.status])
+
+
+  async function handleStartScan() {
+    if (!adminKey) {
+      alert('Please enter your Mimirr Admin Key to start a scan.')
+      return
+    }
+
+    setStartingScan(true)
+    try {
+      const response = await fetch('/api/admin/readarr/start-scan', {
+        method: 'POST',
+        headers: { 'x-mimirr-admin-key': adminKey }
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start scan')
+      }
+
+      // Update local state to trigger polling
+      setSyncJob({ status: 'scanning', currentLogMessage: 'Initializing scan...' })
+
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setStartingScan(false)
+    }
+  }
+
+
+
 
   async function fetchSettings() {
     try {
@@ -258,7 +353,28 @@ export default function BookshelfSettingsPage() {
 
       // Update quality profiles preview (but don't save to settings yet)
       if (data.profiles) {
-        setQualityProfiles(data.profiles)
+        setQualityProfiles(currentProfiles => {
+          if (currentProfiles.length === 0) return data.profiles;
+
+          const newProfilesList = [...currentProfiles];
+          const currentIds = new Set(currentProfiles.map(p => p.profileId));
+
+          let maxOrderIndex = currentProfiles.length > 0
+            ? Math.max(...currentProfiles.map(p => p.orderIndex))
+            : -1;
+
+          data.profiles.forEach((p: QualityProfile) => {
+            if (!currentIds.has(p.profileId)) {
+              maxOrderIndex++;
+              newProfilesList.push({
+                ...p,
+                orderIndex: maxOrderIndex
+              });
+            }
+          });
+
+          return newProfilesList.sort((a, b) => a.orderIndex - b.orderIndex);
+        });
       }
     } catch (error) {
       setTestStatus({
@@ -496,6 +612,78 @@ export default function BookshelfSettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Scan Bookshelf Library</CardTitle>
+          <CardDescription>
+            Run a full Baseline Sync against your library.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <Input
+              label="Mimirr Admin Key"
+              type="password"
+              placeholder="Your SYNC_AUDIT_SECRET"
+              value={adminKey}
+              onChange={(e) => handleAdminKeyChange(e.target.value)}
+              required
+            />
+
+            <Button
+              onClick={handleStartScan}
+              disabled={startingScan || !adminKey || (testStatus?.type !== 'success') || hasUnsavedChanges || (syncJob && syncJob.status === 'scanning')}
+            >
+              {startingScan ? 'Starting...' : 'Scan Library'}
+            </Button>
+
+            {testStatus?.type !== 'success' && (
+              <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                You must test and save a successful connection before scanning.
+              </p>
+            )}
+
+            {syncJob && (syncJob.status !== 'idle') && (
+              <div className="bg-background-secondary p-4 rounded-md border border-border space-y-3">
+                <div className="flex justify-between items-center text-sm font-medium">
+                  <span className="capitalize">{syncJob.status}</span>
+                  {syncJob.totalBooks > 0 && (
+                    <span>{syncJob.processedBooks} / {syncJob.totalBooks}</span>
+                  )}
+                </div>
+
+                {syncJob.totalBooks > 0 && (
+                  <div className="w-full bg-background-tertiary rounded-full h-2">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(0, (syncJob.processedBooks / syncJob.totalBooks) * 100))}%` }}
+                    />
+                  </div>
+                )}
+
+                <div className="font-mono text-xs text-foreground-muted bg-background p-2 rounded max-h-32 overflow-y-auto whitespace-pre-wrap flex flex-col gap-1">
+                  <div>{syncJob.currentLogMessage || 'Waiting for logs...'}</div>
+                  {syncJob.activityLog && (
+                    <div className="border-t border-border-dim pt-2 mt-1">
+                      {(() => {
+                        try {
+                          const logs = JSON.parse(syncJob.activityLog);
+                          return Array.isArray(logs) ? logs.map((log: string, i: number) => (
+                            <div key={i} className={log.includes('[Partial Import]') ? 'text-yellow-500' : ''}>{log}</div>
+                          )) : null;
+                        } catch(e) { return null; }
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+
 
       <Card>
         <CardHeader>

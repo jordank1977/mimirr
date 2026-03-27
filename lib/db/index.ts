@@ -3,31 +3,32 @@ import { createClient } from '@libsql/client'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import * as schema from './schema'
 
-// Cache the database instance
-let _db: LibSQLDatabase<typeof schema> | null = null
+// Initialize database connection
+function initializeDb(): LibSQLDatabase<typeof schema> {
+  // Read DATABASE_URL at RUNTIME, not at module load
+  const databaseUrl = process.env.DATABASE_URL || 'file:./config/db.sqlite'
 
-// Lazy initialization function - called on first access
-function getDatabase(): LibSQLDatabase<typeof schema> {
-  if (!_db) {
-    // Read DATABASE_URL at RUNTIME, not at module load
-    const databaseUrl = process.env.DATABASE_URL || 'file:./config/db.sqlite'
+  const client = createClient({
+    url: databaseUrl,
+  })
+  const dbInstance = drizzle(client, { schema })
 
-    const client = createClient({
-      url: databaseUrl,
-    })
-    _db = drizzle(client, { schema })
-
-    console.log('[DB] Database connection initialized:', databaseUrl)
-  }
-  return _db
+  console.log('[DB] Database connection initialized:', databaseUrl)
+  return dbInstance
 }
 
-// Export a Proxy that lazily initializes on first access
-export const db = new Proxy({} as LibSQLDatabase<typeof schema>, {
-  get(_target, prop) {
-    return (getDatabase() as any)[prop]
-  },
-})
+// Next.js HMR Database Connection Cache
+// In development, Next.js clears the module cache on every reload, which can lead to
+// database connection exhaustion and memory leaks. We cache the connection on globalThis.
+const globalForDb = globalThis as unknown as { sqlite: LibSQLDatabase<typeof schema> | undefined }
+
+// Export the active database connection
+export const db = globalForDb.sqlite ?? initializeDb()
+
+// In development, preserve the database connection across HMR reloads
+if (process.env.NODE_ENV !== 'production') {
+  globalForDb.sqlite = db
+}
 
 // Export schema for use in application
 export * from './schema'

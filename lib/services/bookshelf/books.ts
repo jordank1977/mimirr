@@ -2,6 +2,8 @@ import { BookshelfConfig } from '@/types/bookshelf.types';
 import { fetchWithTimeout, apiGet, apiPost, apiPut } from './api';
 import { fetchLibraryWithCache } from './cache';
 import { logger } from '@/lib/utils/logger';
+import { db, libraryBooks } from '@/lib/db';
+import { eq, or, like } from 'drizzle-orm';
 
 /**
  * Check if a book already exists in the Bookshelf library
@@ -16,146 +18,108 @@ export async function getLibraryBooks(config: BookshelfConfig): Promise<any[]> {
   }
 }
 
+export async function getBook(config: BookshelfConfig, bookId: number): Promise<any> {
+  try {
+    return await apiGet<any>(config, `/api/v1/book/${bookId}`)
+  } catch (error) {
+    logger.error(`Failed to get book ${bookId} from Bookshelf`, { error })
+    return null
+  }
+}
+
+export async function getBookEditions(config: BookshelfConfig, bookId: number): Promise<any[]> {
+  try {
+    return await apiGet<any[]>(config, `/api/v1/edition?bookId=${bookId}`)
+  } catch (error) {
+    logger.error(`Failed to get editions for book ${bookId} from Bookshelf`, { error })
+    return []
+  }
+}
+
 export async function checkBookInLibrary(
   config: BookshelfConfig,
+  foreignBookId: string,
   bookTitle: string,
   authorName: string
 ): Promise<{
   exists: boolean
-  status?: 'available' | 'downloading' | 'missing'
-  bookFileCount?: number
-  format?: string
+  status?: string
   bookshelfId?: number
 }> {
   try {
-    const now = Date.now();
-    let books: any[];
+    // 1. Target SQL Query by foreignBookId
+    if (foreignBookId) {
+      const idMatch = await db
+        .select()
+        .from(libraryBooks)
+        .where(eq(libraryBooks.foreignBookId, foreignBookId))
+        .limit(1);
 
-    // Use the cache utility to fetch books
-    books = await fetchLibraryWithCache(config);
+      if (idMatch.length > 0) {
+        logger.info('Book found in Bookshelf library (ID match)', {
+          foreignBookId,
+          status: idMatch[0].status,
+          bookshelfId: idMatch[0].bookshelfId,
+        });
 
-    if (books.length === 0) {
-      return { exists: false };
+        return {
+          exists: true,
+          status: idMatch[0].status,
+          bookshelfId: idMatch[0].bookshelfId || undefined,
+        };
+      }
     }
 
-    logger.info('Fetched books from Bookshelf', {
-      bookCount: books.length,
+    // 2. Fallback SQL Query by Title and Author
+    const normalizedTitle = bookTitle.toLowerCase().trim();
+    const normalizedAuthor = authorName.toLowerCase().trim();
+
+    // Use a basic SQL like approach to match the title
+    // In SQLite, LIKE is case-insensitive
+    if (normalizedTitle) {
+      const fuzzyMatches = await db
+        .select()
+        .from(libraryBooks)
+        .where(like(libraryBooks.title, `%${normalizedTitle}%`));
+
+      if (fuzzyMatches.length > 0) {
+        const exactMatch = fuzzyMatches.find(book => {
+          const titleMatches = book.title?.toLowerCase().trim() === normalizedTitle;
+          const authorMatches = book.authorName?.toLowerCase().trim().includes(normalizedAuthor) ||
+                                normalizedAuthor.includes(book.authorName?.toLowerCase().trim() || '');
+          return titleMatches && authorMatches;
+        });
+
+        const finalMatch = exactMatch || (fuzzyMatches.length === 1 ? fuzzyMatches[0] : null);
+
+        if (finalMatch) {
+          logger.info('Book found in Bookshelf library (Fuzzy match)', {
+            title: bookTitle,
+            authorName,
+            status: finalMatch.status,
+            bookshelfId: finalMatch.bookshelfId,
+          });
+
+          return {
+            exists: true,
+            status: finalMatch.status,
+            bookshelfId: finalMatch.bookshelfId || undefined,
+          };
+        }
+      }
+    }
+
+    logger.info('Book not found in Bookshelf library', {
+      foreignBookId,
       searchTitle: bookTitle,
       searchAuthor: authorName,
     });
 
-    // Search for the book by title and author
-    const normalizedTitle = bookTitle.toLowerCase().trim();
-    const normalizedAuthor = authorName.toLowerCase().trim();
-
-    logger.debug('Searching for book in library', {
-      normalizedTitle,
-      normalizedAuthor,
-      sampleTitles: books.slice(0, 5).map((b: any) => ({
-        title: b.title,
-        author: b.author?.authorName,
-      })),
-    });
-
-    // First, find all books that match the title
-    const titleMatches = books.filter((book: any) => {
-      const bookTitle = book.title?.toLowerCase().trim();
-      return bookTitle === normalizedTitle || bookTitle?.includes(normalizedTitle);
-    });
-
-    if (titleMatches.length > 0) {
-      logger.info('Found books matching title', {
-        count: titleMatches.length,
-        matches: titleMatches.map((b: any) => ({
-          title: b.title,
-          author: b.author?.authorName,
-          fileCount: b.statistics?.bookFileCount,
-        })),
-      });
-    }
-
-    // Try to find exact match with title and author
-    const matchingBook = titleMatches.find((book: any) => {
-      const bookAuthor = book.author?.authorName?.toLowerCase().trim() || '';
-      // More flexible author matching
-      return bookAuthor === normalizedAuthor ||
-             bookAuthor.includes(normalizedAuthor) ||
-             normalizedAuthor.includes(bookAuthor);
-    });
-
-    // If no exact author match but we have title matches, use the first one
-    // (assuming the title is unique enough)
-    const finalMatch = matchingBook || (titleMatches.length === 1 ? titleMatches[0] : null);
-
-    if (!finalMatch) {
-      logger.info('Book not found in Bookshelf library', {
-        searchTitle: bookTitle,
-        searchAuthor: authorName,
-      });
-      return { exists: false };
-    }
-
-    // Check if the book has files downloaded
-    const bookFileCount = finalMatch.statistics?.bookFileCount || 0;
-
-    logger.info('Book found in Bookshelf library', {
-      title: finalMatch.title,
-      author: finalMatch.author?.authorName,
-      bookFileCount,
-      grabbed: finalMatch.grabbed,
-      monitored: finalMatch.monitored,
-    });
-
-    if (bookFileCount > 0) {
-      // Fetch book files to get format information
-      let format: string | undefined;
-      try {
-        const bookFileUrl = `/api/v1/bookfile?bookId=${finalMatch.id}`;
-        logger.debug('Fetching book files for format info', { url: bookFileUrl, bookId: finalMatch.id });
-
-        const bookFiles = await fetchWithTimeout<any[]>(config, bookFileUrl);
-
-        if (bookFiles.length > 0) {
-          // Get format from first book file (most recent or primary)
-          format = bookFiles[0]?.quality?.quality?.name;
-          logger.info('Book format retrieved', {
-            bookId: finalMatch.id,
-            format,
-            fileCount: bookFiles.length
-          });
-        }
-      } catch (error) {
-        logger.warn('Error fetching book file format', { error, bookId: finalMatch.id });
-        // Continue without format info - not critical
-      }
-
-      return {
-        exists: true,
-        status: 'available',
-        bookFileCount,
-        format,
-        bookshelfId: finalMatch.id,
-      };
-    }
-
-    if (finalMatch.grabbed === true) {
-      return {
-        exists: true,
-        status: 'downloading',
-        bookFileCount: 0,
-        bookshelfId: finalMatch.id,
-      };
-    }
-
-    return {
-      exists: true,
-      status: 'missing',
-      bookFileCount: 0,
-        bookshelfId: finalMatch.id,
-    };
+    return { exists: false };
   } catch (error) {
-    logger.error('Failed to check book in Bookshelf library', {
+    logger.error('Failed to check book in local library cache', {
       error,
+      foreignBookId,
       bookTitle,
       authorName,
     });

@@ -1,31 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth, handleAuthError } from '@/lib/middleware/auth.middleware'
-import { RequestService } from '@/lib/services/request.service'
-import { logger } from '@/lib/utils/logger'
-import { withLogging } from '@/lib/middleware/logging.middleware'
+import { NextResponse } from 'next/server';
+import { RequestService } from '@/lib/services/request.service';
+import { logger } from '@/lib/utils/logger';
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
-/**
- * POST /api/requests/poll - Poll Bookshelf for status updates
- */
-async function pollHandler(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    // Require authentication (any user can trigger polling)
-    const user = await requireAuth(request)
+    // 1. Authorization (OPSEC)
+    const adminKey = request.headers.get('x-mimirr-admin-key');
+    const secretKey = process.env.SYNC_AUDIT_SECRET;
 
-    logger.debug('Polling triggered', { userId: user.userId, role: user.role })
+    if (!secretKey || adminKey !== secretKey) {
+      logger.warn('Unauthorized access attempt to target poll route');
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
 
-    // Poll all processing requests
-    const result = await RequestService.pollProcessingRequests()
+    logger.info('Starting Sniper Poller');
+    const result = await RequestService.targetPollActiveRequests();
 
     return NextResponse.json({
       success: true,
-      ...result,
-    })
+      message: 'Sniper polling completed',
+      ...result
+    });
+
   } catch (error) {
-    return handleAuthError(error)
+    logger.error('Error executing sniper poller', { error });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
-
-export const POST = withLogging(pollHandler)
