@@ -34,6 +34,11 @@ If you want sessions to persist across container restarts, optionally set:
 JWT_SECRET=your-secret-key  # Generate with: openssl rand -base64 32
 ```
 
+If you plan to run headless background library syncs (e.g., via a cron job or external script), configure a secure key:
+```env
+SYNC_AUDIT_SECRET=your-sync-audit-secret # Generate with: openssl rand -base64 32
+```
+
 ### 3. Deploy
 
 ```bash
