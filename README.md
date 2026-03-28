@@ -23,6 +23,9 @@ Mimirr doesn't rely on fragile third-party websites to look up book covers or de
 ### 2. Smart Sync & Status Tracking
 Mimirr doesn't just handle new requests; it knows exactly what you already own. It automatically scans your existing Bookshelf library in the background to prevent duplicate requests. When searching, users will see clear, color-coded badges indicating if a book is **Available** (already in your library), **Processing** (currently downloading), **Requested** (waiting for approval), or **Unreleased**. 
 
+### 3. Self-Healing Schema
+The Docker container automatically syncs its database schema on boot via Drizzle Push, ensuring users do not need to manually manage or run migration files during updates.
+
 ---
 
 ## 🚀 Quick Start (Docker)
