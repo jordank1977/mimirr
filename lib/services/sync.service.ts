@@ -63,8 +63,42 @@ export class SyncService {
    * Detached from standard polling. Triggered manually via API.
    * Implements the Hard Filter and Scorched Earth purge.
    */
+  private static async normalizeLegacyStatuses(): Promise<void> {
+    const statusMap: Record<string, string> = {
+      'approved': 'processing',
+      'Available': 'available',
+      'Unreleased': 'unreleased',
+      'Requested': 'requested',
+      'Processing': 'processing',
+      'Pending': 'pending',
+      'Declined': 'declined',
+      'Error': 'error'
+    }
+
+    try {
+      let totalUpdated = 0
+
+      for (const [legacyStatus, newStatus] of Object.entries(statusMap)) {
+        const result = await db
+          .update(requests)
+          .set({ status: newStatus as any })
+          .where(eq(requests.status, legacyStatus as any))
+
+        totalUpdated += result.rowsAffected
+      }
+
+      if (totalUpdated > 0) {
+        logger.info(`Normalized ${totalUpdated} legacy request statuses to strict lowercase`)
+      }
+    } catch (error) {
+      logger.error('Failed to normalize legacy statuses:', error instanceof Error ? error.message : String(error))
+    }
+  }
+
   static async reconcileWithReadarr(config: BookshelfConfig, jobId?: number): Promise<{ added: number, orphaned: number, purged: number }> {
     logger.info('Starting Baseline Sync & Active State Reconciliation with Readarr')
+
+    await this.normalizeLegacyStatuses()
     let addedCount = 0;
     let orphanedCount = 0;
     let purgedCount = 0;
