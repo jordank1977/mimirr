@@ -14,7 +14,6 @@ export default function AllRequestsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('pending')
   const [polling, setPolling] = useState(false)
-  const [isScanning, setIsScanning] = useState(false)
   const [declineConfirm, setDeclineConfirm] = useState<{ show: boolean; id: number | null }>({
     show: false,
     id: null,
@@ -159,46 +158,6 @@ export default function AllRequestsPage() {
     }
   }
 
-  async function handleScanBookLore() {
-    setIsScanning(true)
-    try {
-      const response = await fetch('/api/booklore/scan', {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(errorData.error || 'Failed to scan BookLore')
-      }
-
-      // Show success toast
-      setToast({
-        show: true,
-        message: 'BookLore scan initiated successfully',
-        type: 'success',
-      })
-      
-      // Auto-hide toast after 5 seconds
-      setTimeout(() => {
-        setToast(prev => ({ ...prev, show: false }))
-      }, 5000)
-    } catch (error) {
-      // Show error toast
-      setToast({
-        show: true,
-        message: error instanceof Error ? error.message : 'Failed to scan BookLore',
-        type: 'error',
-      })
-      
-      // Auto-hide toast after 5 seconds
-      setTimeout(() => {
-        setToast(prev => ({ ...prev, show: false }))
-      }, 5000)
-    } finally {
-      setIsScanning(false)
-    }
-  }
-
   const isUnreleased = (r: RequestWithBook) =>
     r.bookPublishedDate && new Date(r.bookPublishedDate) > new Date()
 
@@ -335,15 +294,6 @@ export default function AllRequestsPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleScanBookLore}
-            disabled={isScanning}
-          >
-            <BookOpen className={`w-4 h-4 mr-2 ${isScanning ? 'animate-spin' : ''}`} />
-            {isScanning ? 'Scanning...' : 'Scan BookLore'}
-          </Button>
           <Button
             variant="outline"
             size="sm"

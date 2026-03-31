@@ -6,6 +6,7 @@ import { logger } from '@/lib/utils/logger';
 import { NotificationService } from '@/lib/services/notification.service';
 import { BookService } from '@/lib/services/book.service';
 import { BookshelfService } from '@/lib/services/bookshelf.service';
+import { BookLoreService } from '@/lib/services/booklore.service';
 
 export async function POST(request: Request) {
   try {
@@ -128,6 +129,18 @@ export async function POST(request: Request) {
         } catch (notifyError) {
             logger.error('Failed to send webhook completion notification', { error: notifyError });
         }
+
+        // Trigger BookLore scan asynchronously
+        BookLoreService.getConfig().then(config => {
+          if (config) {
+            logger.info('Triggering automated BookLore scan from Readarr webhook', { requestId: matchedRequest.id });
+            BookLoreService.refreshLibrary(config).catch(err => {
+              logger.error('Automated BookLore scan failed', { error: err });
+            });
+          }
+        }).catch(err => {
+          logger.error('Failed to retrieve BookLore config for automated scan', { error: err });
+        });
       }
     } else {
         logger.debug('Ignoring unhandled webhook event type', { eventType });

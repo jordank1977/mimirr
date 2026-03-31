@@ -106,6 +106,8 @@ export class SyncService {
     try {
       const { ReadarrService } = await import('@/lib/services/readarr.service');
 
+      let shouldTriggerBookLore = false
+
       // 1. Fetch bulk library and authors from Readarr
       const readarrAuthors = await BookshelfService.getLibraryAuthors(config)
       const readarrLibrary = await ReadarrService.scanLocalLibrary()
@@ -173,6 +175,25 @@ export class SyncService {
               })
             }
           }
+
+          // **NEW LOGIC: Update Mimirr status if Readarr book exists and is available but Mimirr is not**
+          if (readarrBook) {
+             const hasFiles = readarrBook.statistics?.bookFileCount > 0 || readarrBook.hasFile === true
+             if (hasFiles && req.status !== 'available' && req.status !== 'Available') {
+                try {
+                   await db.update(requests)
+                     .set({ status: 'available' as any, completedAt: new Date() })
+                     .where(eq(requests.id, req.id))
+                   logger.info(`Auto-corrected request ${req.id} status to available via background sync`, {
+                     bookshelfId: req.bookshelfId,
+                     foreignBookId: req.foreignBookId
+                   })
+                   shouldTriggerBookLore = true
+                } catch (e) {
+                   logger.error('Failed to auto-correct request status to available', { error: e, requestId: req.id })
+                }
+             }
+          }
         }
         if (req.foreignBookId) {
             mimirrForeignIds.add(String(req.foreignBookId))
@@ -224,18 +245,18 @@ export class SyncService {
         const foreignBookId = String(book.foreignBookId || book.id)
         const hasFiles = book.statistics?.bookFileCount > 0 || book.hasFile === true
 
-        let status = 'Unowned'; // Default fallback though it shouldn't hit this if monitored or has files
+        let status = 'unowned'; // Default fallback though it shouldn't hit this if monitored or has files
 
         if (hasFiles) {
-          status = 'Available';
+          status = 'available';
         } else if (book.monitored) {
           const releaseDate = book.releaseDate ? new Date(book.releaseDate) : null;
           const now = new Date();
 
           if (releaseDate && releaseDate > now) {
-            status = 'Unreleased';
+            status = 'unreleased';
           } else {
-            status = 'Processing';
+            status = 'processing';
           }
         } else {
           // If neither has files nor monitored, skip inserting into uniqueLibraryBooks
@@ -245,8 +266,8 @@ export class SyncService {
         }
 
         const existing = uniqueLibraryBooks.get(foreignBookId)
-        // Deduplicate: Prioritize the duplicate that has files ('Available')
-        if (!existing || status === 'Available') {
+        // Deduplicate: Prioritize the duplicate that has files ('available')
+        if (!existing || status === 'available' || status === 'Available') {
            uniqueLibraryBooks.set(foreignBookId, {
               foreignBookId,
               status,
@@ -307,16 +328,16 @@ export class SyncService {
           continue;
         }
 
-        let ghostStatus = 'Unowned';
+        let ghostStatus = 'unowned';
         if (hasFiles) {
-          ghostStatus = 'Available';
+          ghostStatus = 'available';
         } else if (book.monitored) {
           const releaseDate = book.releaseDate ? new Date(book.releaseDate) : null;
           const now = new Date();
           if (releaseDate && releaseDate > now) {
-            ghostStatus = 'Unreleased';
+            ghostStatus = 'unreleased';
           } else {
-            ghostStatus = 'Processing';
+            ghostStatus = 'processing';
           }
         }
 
@@ -437,6 +458,27 @@ export class SyncService {
          }
          addedCount = ghostsToImport.length;
          logger.info(`Completed Ghost Import: Added ${ghostsToImport.length} synthetic requests.`)
+         
+         // If any ghosts were added and are available, we should trigger BookLore scan
+         if (ghostsToImport.some(g => g.status === 'available' || g.status === 'Available')) {
+           shouldTriggerBookLore = true
+         }
+      }
+
+      // Hybrid Fallback: Trigger BookLore scan if any books transitioned to 'available'
+      if (shouldTriggerBookLore) {
+        import('@/lib/services/booklore.service').then(({ BookLoreService }) => {
+          BookLoreService.getConfig().then(bookLoreConfig => {
+            if (bookLoreConfig) {
+              logger.info('Triggering automated BookLore scan from background sync (hybrid fallback)');
+              BookLoreService.refreshLibrary(bookLoreConfig).catch(err => {
+                logger.error('Automated BookLore scan failed during background sync', { error: err });
+              });
+            }
+          }).catch(err => {
+            logger.error('Failed to retrieve BookLore config for automated scan during background sync', { error: err });
+          });
+        });
       }
 
       logger.info('Baseline Sync & Active State Reconciliation complete')
