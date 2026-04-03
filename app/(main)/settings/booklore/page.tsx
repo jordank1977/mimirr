@@ -172,7 +172,7 @@ export default function BookLoreSettingsPage() {
         <CardHeader>
           <CardTitle>BookLore Configuration</CardTitle>
           <CardDescription>
-            Configure BookLore to enable on-demand library scanning. This allows users to force BookLore to refresh its library immediately after a book is downloaded.
+            Configure BookLore to enable background library syncing. This allows Mimirr to automatically trigger BookLore to refresh its library immediately after a book is downloaded.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -301,22 +301,21 @@ export default function BookLoreSettingsPage() {
         <CardHeader>
           <CardTitle>About BookLore</CardTitle>
           <CardDescription>
-            BookLore provides on-demand library scanning to keep your book library synchronized
+            BookLore synchronization ensures your library stays up-to-date.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-foreground-muted">
           <p>
-            BookLore enhances Mimirr by providing immediate library scanning capabilities:
+            BookLore enhances Mimirr by automatically keeping your library in sync:
           </p>
           <ul className="list-disc list-inside space-y-1 ml-4">
-            <li>Manual library refresh on demand</li>
             <li>Immediate synchronization after book downloads</li>
             <li>Library status monitoring and health checks</li>
             <li>Integration with your existing BookLore library</li>
           </ul>
           <p className="pt-2">
-            When enabled, users can manually trigger BookLore library scans to ensure
-            newly downloaded books are immediately available in the system.
+            When configured, Mimirr's background polling engine will automatically trigger BookLore library scans
+            to ensure newly downloaded books are immediately available in the system.
           </p>
         </CardContent>
       </Card>

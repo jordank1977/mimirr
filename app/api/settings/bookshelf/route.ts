@@ -121,7 +121,14 @@ async function postHandler(request: NextRequest) {
       logger.error('Failed to sync quality profiles', { error: syncError })
     }
 
-    logger.info('Bookshelf settings updated', { userId: user.userId })
+    logger.info('Bookshelf settings updated. Triggering auto-scan in background.', { userId: user.userId })
+
+    // Auto-Scan on Connect: Fire-and-forget background sync
+    import('@/lib/services/sync.service').then(({ SyncService }) => {
+      SyncService.runBackgroundSync().catch(err => {
+        logger.error('Failed to trigger background auto-scan after configuration update', { error: err })
+      })
+    })
 
     return NextResponse.json({
       message: 'Bookshelf configured successfully',

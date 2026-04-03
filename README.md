@@ -46,6 +46,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/config/db.sqlite
+      # - SYNC_INTERVAL_MINUTES=15
     restart: unless-stopped
 
 volumes:
@@ -58,6 +59,14 @@ Start the container:
 docker-compose up -d
 ```
 Access the initial setup wizard at `http://localhost:8788`.
+
+### Environment Variables
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `DATABASE_URL` | Connection string for the SQLite database. | `file:/app/config/db.sqlite` |
+| `SYNC_INTERVAL_MINUTES` | The background polling frequency for the Bookshelf library sync engine in minutes. | `15` |
+| `NODE_ENV` | Environment context. | `production` |
 
 ---
 

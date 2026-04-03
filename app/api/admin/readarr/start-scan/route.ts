@@ -47,10 +47,26 @@ export async function POST(request: NextRequest) {
       .limit(1)
 
     if (activeJobs.length > 0) {
-      return NextResponse.json(
-        { error: 'A scan is already in progress.', jobId: activeJobs[0].id },
-        { status: 409 }
-      )
+      const activeJob = activeJobs[0]
+      const startedAt = new Date(activeJob.startedAt).getTime()
+      const now = Date.now()
+
+      // Fail-safe: Release lock if scanning for > 2 hours
+      if (now - startedAt > 2 * 60 * 60 * 1000) {
+        logger.warn(`Stale sync job detected (ID: ${activeJob.id}). Clearing lock.`)
+        await db.update(syncJobs)
+          .set({
+            status: 'error',
+            currentLogMessage: 'Job timed out after 2 hours.',
+            completedAt: new Date()
+          })
+          .where(eq(syncJobs.id, activeJob.id))
+      } else {
+        return NextResponse.json(
+          { error: 'A scan is already in progress.', jobId: activeJobs[0].id },
+          { status: 409 }
+        )
+      }
     }
 
     // 3. Fetch Configuration

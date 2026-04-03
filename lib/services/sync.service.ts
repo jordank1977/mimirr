@@ -95,6 +95,84 @@ export class SyncService {
     }
   }
 
+  static async runBackgroundSync(): Promise<void> {
+    try {
+      logger.info('Starting scheduled background polling sync...')
+
+      // 1. Fetch Configuration
+      const urlSetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'bookshelf_url'))
+        .limit(1)
+
+      const apiKeySetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'bookshelf_api_key'))
+        .limit(1)
+
+      const bookshelfUrl = urlSetting[0]?.value
+      const bookshelfApiKey = apiKeySetting[0]?.value
+
+      if (!bookshelfUrl || !bookshelfApiKey) {
+        logger.warn('Bookshelf configuration missing. Skipping background sync.')
+        return
+      }
+
+      const bookshelfConfig = {
+        url: bookshelfUrl,
+        apiKey: bookshelfApiKey,
+      }
+
+      // 2. Concurrency Lock check
+      const activeJobs = await db
+        .select()
+        .from(syncJobs)
+        .where(eq(syncJobs.status, 'scanning'))
+        .limit(1)
+
+      if (activeJobs.length > 0) {
+        const activeJob = activeJobs[0]
+        const startedAt = new Date(activeJob.startedAt).getTime()
+        const now = Date.now()
+
+        // Fail-safe: Release lock if scanning for > 2 hours
+        if (now - startedAt > 2 * 60 * 60 * 1000) {
+          logger.warn(`Stale sync job detected (ID: ${activeJob.id}). Clearing lock.`)
+          await db.update(syncJobs)
+            .set({
+              status: 'error',
+              currentLogMessage: 'Job timed out after 2 hours.',
+              completedAt: new Date()
+            })
+            .where(eq(syncJobs.id, activeJob.id))
+        } else {
+          logger.info('A sync job is already running. Skipping scheduled sync.')
+          return
+        }
+      }
+
+      // 3. Create new job
+      const newJob = await db
+        .insert(syncJobs)
+        .values({
+          status: 'scanning',
+          currentLogMessage: 'Initializing background sync...',
+        })
+        .returning()
+
+      const jobId = newJob[0].id
+
+      // 4. Run Orchestrator
+      const { ReadarrJobOrchestrator } = await import('./orchestrator.service')
+      await ReadarrJobOrchestrator.startJob(jobId, bookshelfConfig)
+
+    } catch (error) {
+      logger.error('Error during scheduled background sync', { error })
+    }
+  }
+
   static async reconcileWithReadarr(config: BookshelfConfig, jobId?: number): Promise<{ added: number, orphaned: number, purged: number }> {
     logger.info('Starting Baseline Sync & Active State Reconciliation with Readarr')
 
