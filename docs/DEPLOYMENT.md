@@ -29,11 +29,6 @@ nano .env
 
 **All configuration is optional!** Mimirr uses sensible defaults.
 
-If you want sessions to persist across container restarts, optionally set:
-```env
-JWT_SECRET=your-secret-key  # Generate with: openssl rand -base64 32
-```
-
 If you plan to run headless background library syncs (e.g., via a cron job or external script), configure a secure key:
 ```env
 SYNC_AUDIT_SECRET=your-sync-audit-secret # Generate with: openssl rand -base64 32
@@ -139,7 +134,6 @@ services:
     volumes:
       - mimirr-data:/app/config
     environment:
-      - JWT_SECRET=${JWT_SECRET}
       - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME}
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
     labels:
@@ -365,20 +359,18 @@ ADMIN_PASSWORD=your_new_password ADMIN_USERNAME=your_username npm run db:reset-a
 
 ## Security Best Practices
 
-1. **Strong JWT Secret**: Use 32+ character random string
-2. **Change Default Credentials**: Immediately after first login
-3. **Use HTTPS**: Always use reverse proxy with SSL/TLS
-4. **Regular Updates**: Keep Docker and application updated
-5. **Firewall**: Only expose port 8788 to reverse proxy
-6. **Backups**: Automate daily database backups
-7. **Environment Files**: Never commit `.env` to git
-8. **User Permissions**: Run as non-root (already configured)
-9. **Volume Permissions**: Ensure proper ownership
-10. **Security Headers**: Configure in reverse proxy
+1. **Change Default Credentials**: Immediately after first login
+2. **Use HTTPS**: Always use reverse proxy with SSL/TLS
+3. **Regular Updates**: Keep Docker and application updated
+4. **Firewall**: Only expose port 8788 to reverse proxy
+5. **Backups**: Automate daily database backups
+6. **Environment Files**: Never commit `.env` to git
+7. **User Permissions**: Run as non-root (already configured)
+8. **Volume Permissions**: Ensure proper ownership
+9. **Security Headers**: Configure in reverse proxy
 
 ## Production Checklist
 
-- [ ] Changed JWT_SECRET to strong random value
 - [ ] Updated DEFAULT_ADMIN_PASSWORD
 - [ ] Configured reverse proxy with HTTPS
 - [ ] Set up automated backups

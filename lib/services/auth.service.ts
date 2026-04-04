@@ -1,8 +1,8 @@
-import { db, users, type User, type NewUser } from '@/lib/db'
+import { db, users, sessions, type User, type NewUser } from '@/lib/db'
 import { hashPassword, verifyPassword } from '@/lib/utils/crypto'
-import { signJWT } from '@/lib/utils/jwt'
 import { logger } from '@/lib/utils/logger'
 import { eq } from 'drizzle-orm'
+import crypto from 'crypto'
 
 export class AuthService {
   /**
@@ -58,10 +58,19 @@ export class AuthService {
 
     logger.info('User registered', { userId: user.id, username: user.username })
 
-    // Generate JWT token
-    const token = signJWT({ userId: user.id, role: user.role })
+    // Generate session token
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex')
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 30) // 30 days expiration
 
-    return { user, token }
+    await db.insert(sessions).values({
+      token: hashedToken,
+      userId: user.id,
+      expiresAt,
+    })
+
+    return { user, token: rawToken }
   }
 
   /**
@@ -98,10 +107,19 @@ export class AuthService {
 
     logger.info('User logged in', { userId: user.id, username: user.username })
 
-    // Generate JWT token
-    const token = signJWT({ userId: user.id, role: user.role })
+    // Generate session token
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex')
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 30) // 30 days expiration
 
-    return { user, token }
+    await db.insert(sessions).values({
+      token: hashedToken,
+      userId: user.id,
+      expiresAt,
+    })
+
+    return { user, token: rawToken }
   }
 
   /**

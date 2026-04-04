@@ -171,6 +171,19 @@ export const libraryBooks = sqliteTable('library_books', {
   authorName: text('author_name').notNull().default(''),
 })
 
+// Sessions table
+export const sessions = sqliteTable('sessions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  token: text('token').notNull().unique(), // Store hashed token
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
 // Sync jobs table
 export const syncJobs = sqliteTable('sync_jobs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -190,6 +203,8 @@ export const syncJobs = sqliteTable('sync_jobs', {
 // Type exports for use in application
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
+export type Session = typeof sessions.$inferSelect
+export type NewSession = typeof sessions.$inferInsert
 export type Request = typeof requests.$inferSelect
 export type NewRequest = typeof requests.$inferInsert
 export type BookCache = typeof bookCache.$inferSelect

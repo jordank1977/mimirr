@@ -16,7 +16,7 @@
 
 ### Security Features
 - ✅ Non-root user (nextjs:nodejs) - UID 1001, GID 1001
-- ✅ JWT authentication with HTTP-only cookies
+- ✅ Stateful session authentication with HTTP-only cookies
 - ✅ Environment-based secrets (not hardcoded)
 - ✅ Health check endpoint for monitoring
 - ✅ Production optimizations (console.log removal)
@@ -78,7 +78,7 @@ DATABASE_URL=file:/app/config/db.sqlite
 PORT=8788
 ```
 
-**Note:** `JWT_SECRET` auto-generates. Optionally set to persist sessions across container restarts. `SYNC_AUDIT_SECRET` can be optionally set to trigger headless background scans.
+**Note:** `SYNC_AUDIT_SECRET` can be optionally set to trigger headless background scans.
 
 ## Post-Deployment
 
@@ -239,7 +239,6 @@ See `DEPLOYMENT.md` for detailed scripts.
 ## Deployment Checklist
 
 Pre-Deployment:
-- [ ] Generated strong JWT_SECRET (32+ characters)
 - [ ] Changed DEFAULT_ADMIN_PASSWORD
 - [ ] Configured reverse proxy with HTTPS
 - [ ] Set up automated backups

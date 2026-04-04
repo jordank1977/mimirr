@@ -4,11 +4,16 @@ import { loginSchema } from '@/lib/utils/validation'
 import { setAuthCookie } from '@/lib/middleware/auth.middleware'
 import { logger } from '@/lib/utils/logger'
 import { withLogging } from '@/lib/middleware/logging.middleware'
+import { db, sessions } from '@/lib/db'
+import { lt } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
 async function loginHandler(request: NextRequest) {
   try {
+    // Cleanup expired sessions
+    await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
+
     const body = await request.json()
 
     // Validate input

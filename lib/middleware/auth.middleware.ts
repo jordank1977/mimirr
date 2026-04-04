@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyJWT, type JWTPayload } from '@/lib/utils/jwt'
 import { logger } from '@/lib/utils/logger'
+import { db, sessions, users } from '@/lib/db'
+import { eq, and, gt } from 'drizzle-orm'
+import crypto from 'crypto'
+
+export interface SessionPayload {
+  userId: number
+  role: 'admin' | 'user'
+}
 
 export class AuthError extends Error {
   constructor(
@@ -22,7 +29,7 @@ export function getTokenFromRequest(request: NextRequest): string | null {
 /**
  * Verify authentication and return user payload
  */
-export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
+export async function requireAuth(request: NextRequest): Promise<SessionPayload> {
   const token = getTokenFromRequest(request)
 
   if (!token) {
@@ -30,10 +37,38 @@ export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
   }
 
   try {
-    const payload = verifyJWT(token)
-    return payload
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
+
+    // Look up the session and join with the user table to get the role
+    const result = await db
+      .select({
+        userId: sessions.userId,
+        role: users.role,
+        expiresAt: sessions.expiresAt,
+      })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .where(
+        and(
+          eq(sessions.token, hashedToken),
+          gt(sessions.expiresAt, new Date())
+        )
+      )
+      .limit(1)
+
+    if (result.length === 0) {
+      throw new AuthError('Invalid or expired token', 401)
+    }
+
+    return {
+      userId: result[0].userId,
+      role: result[0].role as 'admin' | 'user',
+    }
   } catch (error) {
-    logger.error('JWT verification failed', { error: error instanceof Error ? error.message : error })
+    if (error instanceof AuthError) {
+      throw error
+    }
+    logger.error('Session verification failed', { error: error instanceof Error ? error.message : error })
     throw new AuthError('Invalid or expired token', 401)
   }
 }
@@ -41,7 +76,7 @@ export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
 /**
  * Require admin role
  */
-export async function requireAdmin(request: NextRequest): Promise<JWTPayload> {
+export async function requireAdmin(request: NextRequest): Promise<SessionPayload> {
   const payload = await requireAuth(request)
 
   if (payload.role !== 'admin') {
@@ -79,7 +114,7 @@ export function setAuthCookie(response: NextResponse, token: string): void {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production' && !process.env.DISABLE_HTTPS_COOKIES,
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 30, // 30 days
     path: '/',
   })
 }
