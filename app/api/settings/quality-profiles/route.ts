@@ -24,7 +24,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Get quality profiles API error', { error })
+    logger.error('Get quality profiles API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to fetch quality profiles' },
       { status: 500 }

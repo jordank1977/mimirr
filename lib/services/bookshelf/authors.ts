@@ -6,7 +6,7 @@ export async function getLibraryAuthors(config: BookshelfConfig): Promise<any[]>
   try {
     return await apiGet<any[]>(config, '/api/v1/author');
   } catch (error) {
-    logger.error('Failed to get library authors from Bookshelf', { error });
+    logger.error('Failed to get library authors from Bookshelf', { error: error instanceof Error ? error.message : error });
     return [];
   }
 }

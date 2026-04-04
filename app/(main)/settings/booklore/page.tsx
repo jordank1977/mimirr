@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -83,7 +84,7 @@ export default function BookLoreSettingsPage() {
         setInitialFormData(settings)
       }
     } catch (error) {
-      console.error('Failed to fetch settings:', error)
+      logToClient('error', 'Failed to fetch settings:', { error: error instanceof Error ? error.message : error })
     } finally {
       setLoading(false)
     }

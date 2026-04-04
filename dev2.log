@@ -1,0 +1,30 @@
+
+> mimirr@0.1.0 dev
+> next dev
+
+   â–² Next.js 15.5.9
+   - Local:        http://localhost:3000
+   - Network:      http://127.0.0.1:3000
+   - Experiments (use with caution):
+     Â· optimizePackageImports
+
+ âœ“ Starting...
+ â—‹ Compiling /instrumentation ...
+ âœ“ Compiled /instrumentation in 1349ms (152 modules)
+[DB] Database connection initialized: file:./config/db.sqlite
+ âœ“ Ready in 3.3s
+[2026-03-31 22:01:18.344 +0000] [32mINFO[39m: [36mInitializing instrumentation: Node.js runtime detected.[39m
+[2026-03-31 22:01:18.516 +0000] [32mINFO[39m: [36mStarting background sync polling engine. Interval: 15 minutes.[39m
+[2026-03-31 22:01:23.517 +0000] [32mINFO[39m: [36mStarting scheduled background polling sync...[39m
+[2026-03-31 22:01:23.523 +0000] [33mWARN[39m: [36mBookshelf configuration missing. Skipping background sync.[39m
+ â—‹ Compiling /settings/booklore ...
+ âœ“ Compiled /settings/booklore in 8.9s (1000 modules)
+ GET /settings/booklore 200 in 10440ms
+ âœ“ Compiled in 1481ms (358 modules)
+ â—‹ Compiling /api/requests/poll ...
+ âœ“ Compiled /api/requests/poll in 3.1s (1216 modules)
+[2026-03-31 22:01:46.144 +0000] [33mWARN[39m: [36mJWT_SECRET not set - using auto-generated secret. Set JWT_SECRET environment variable to persist sessions across restarts.[39m
+[2026-03-31 22:01:46.217 +0000] [32mINFO[39m: [36mIncoming GET /api/notifications[39m
+[2026-03-31 22:01:46.218 +0000] [32mINFO[39m: [36mIncoming GET /api/notifications[39m
+[2026-03-31 22:01:46.220 +0000] [32mINFO[39m: [36mCompleted GET /api/notifications - 401 in 3ms[39m
+[2026-03-31 22:01:46.220 +0000] [32mINFO[39m: [36mCompleted GET /api/notifications - 401 in 2ms[39m

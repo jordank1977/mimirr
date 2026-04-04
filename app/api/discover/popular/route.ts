@@ -22,7 +22,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Get popular books API error', { error })
+    logger.error('Get popular books API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to retrieve popular books' },
       { status: 500 }

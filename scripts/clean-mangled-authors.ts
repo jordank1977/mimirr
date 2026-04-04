@@ -1,5 +1,6 @@
 import { db, bookCache } from '../lib/db';
 import { sql } from 'drizzle-orm';
+import { logger } from '../lib/utils/logger';
 
 function capitalizeName(name: string): string {
   return name
@@ -10,11 +11,11 @@ function capitalizeName(name: string): string {
 }
 
 async function main() {
-  console.log('Starting one-time database cleanup for mangled author names in bookCache...');
+  logger.info('Starting one-time database cleanup for mangled author names in bookCache...');
 
   // Fetch all records
   const records = await db.select().from(bookCache);
-  console.log(`Found ${records.length} total records in bookCache.`);
+  logger.info(`Found ${records.length} total records in bookCache.`);
 
   let repairedCount = 0;
 
@@ -113,7 +114,7 @@ async function main() {
               })
               .where(sql`id = ${record.id}`);
           repairedCount++;
-          console.log(`Repaired: "${originalAuthor}" / "${originalTitle}"  ->  "${newAuthor}" / "${newTitle}"`);
+          logger.info(`Repaired: "${originalAuthor}" / "${originalTitle}"  ->  "${newAuthor}" / "${newTitle}"`);
       } else if (fragmentToMove && newTitle) {
           // Reconstruct the author
           // Original author was e.g. "Emily Mandel". We want "Emily St. John Mandel".
@@ -135,13 +136,15 @@ async function main() {
                   .where(sql`id = ${record.id}`);
 
               repairedCount++;
-              console.log(`Repaired: "${originalAuthor}" / "${originalTitle}"  ->  "${newAuthor}" / "${newTitle}"`);
+              logger.info(`Repaired: "${originalAuthor}" / "${originalTitle}"  ->  "${newAuthor}" / "${newTitle}"`);
           }
       }
     }
   }
 
-  console.log(`Finished processing ${records.length} records. Successfully repaired ${repairedCount} mangled records.`);
+  logger.info(`Finished processing records.`, { totalProcessed: records.length, successfullyRepaired: repairedCount });
 }
 
-main().catch(console.error);
+main().catch(error => {
+  logger.error('Error during cleanup', { error: error instanceof Error ? error.message : error });
+});

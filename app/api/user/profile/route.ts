@@ -113,7 +113,7 @@ async function patchHandler(request: NextRequest) {
       message: 'Profile updated successfully',
     })
   } catch (error) {
-    logger.error('Failed to update profile', { error })
+    logger.error('Failed to update profile', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to update profile' },
       { status: 500 }

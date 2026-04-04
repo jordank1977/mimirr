@@ -38,7 +38,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Get Bookshelf settings error', { error })
+    logger.error('Get Bookshelf settings error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to retrieve settings' },
       { status: 500 }
@@ -144,7 +144,7 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    logger.error('Unexpected update settings error', { error })
+    logger.error('Unexpected update settings error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to update settings' },
       { status: 500 }

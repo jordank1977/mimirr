@@ -47,7 +47,7 @@ async function postHandler(request: NextRequest) {
         orderIndex: index,
       }))
     } catch (error) {
-      logger.error('Failed to fetch quality profiles during test', { error })
+      logger.error('Failed to fetch quality profiles during test', { error: error instanceof Error ? error.message : error })
       // Don't fail the test if profile fetch fails
     }
 
@@ -72,7 +72,7 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    logger.error('Unexpected test connection error', { error })
+    logger.error('Unexpected test connection error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Connection test failed' },
       { status: 500 }

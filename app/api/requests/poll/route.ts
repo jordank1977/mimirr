@@ -1,11 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { RequestService } from '@/lib/services/request.service';
 import { logger } from '@/lib/utils/logger';
+import { withLogging } from '@/lib/middleware/logging.middleware';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-export async function GET(request: Request) {
+export const GET = withLogging(async function GET(request: NextRequest) {
   try {
     // 1. Authorization (OPSEC)
     const adminKey = request.headers.get('x-mimirr-admin-key');
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    logger.info('Starting Sniper Poller');
+    logger.debug('Starting Sniper Poller');
     const result = await RequestService.targetPollActiveRequests();
 
     return NextResponse.json({
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     });
 
   } catch (error) {
-    logger.error('Error executing sniper poller', { error });
+    logger.error('Error executing sniper poller', { error: error instanceof Error ? error.message : error });
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-}
+});

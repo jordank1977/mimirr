@@ -33,7 +33,7 @@ export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
     const payload = verifyJWT(token)
     return payload
   } catch (error) {
-    logger.error('JWT verification failed', { error })
+    logger.error('JWT verification failed', { error: error instanceof Error ? error.message : error })
     throw new AuthError('Invalid or expired token', 401)
   }
 }
@@ -45,9 +45,11 @@ export async function requireAdmin(request: NextRequest): Promise<JWTPayload> {
   const payload = await requireAuth(request)
 
   if (payload.role !== 'admin') {
+    logger.trace('Admin authorization rejected', { userId: payload.userId, role: payload.role, path: request.nextUrl.pathname })
     throw new AuthError('Admin access required', 403)
   }
 
+  logger.trace('Admin authorization successful', { userId: payload.userId, path: request.nextUrl.pathname })
   return payload
 }
 
@@ -62,7 +64,7 @@ export function handleAuthError(error: unknown): NextResponse {
     )
   }
 
-  logger.error('Unexpected error in auth middleware', { error })
+  logger.error('Unexpected error in auth middleware', { error: error instanceof Error ? error.message : error })
   return NextResponse.json(
     { error: 'Internal server error' },
     { status: 500 }

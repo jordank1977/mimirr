@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/libsql'
 import { createClient } from '@libsql/client'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import * as schema from './schema'
+import { logger } from '@/lib/utils/logger'
 
 // Initialize database connection
 function initializeDb(): LibSQLDatabase<typeof schema> {
@@ -13,7 +14,7 @@ function initializeDb(): LibSQLDatabase<typeof schema> {
   })
   const dbInstance = drizzle(client, { schema })
 
-  console.log('[DB] Database connection initialized:', databaseUrl)
+  logger.info('[DB] Database connection initialized', { databaseUrl })
   return dbInstance
 }
 

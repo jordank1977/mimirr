@@ -96,7 +96,7 @@ async function getHandler(
           }
         } catch (error) {
           // Silently fail - don't block book detail if Bookshelf check fails
-          logger.error('Failed to check book in Bookshelf', { bookId: book.id, error })
+          logger.error('Failed to check book in Bookshelf', { bookId: book.id, error: error instanceof Error ? error.message : error })
         }
       }
     }
@@ -116,7 +116,7 @@ async function getHandler(
       return handleAuthError(error)
     }
 
-    logger.error('Get book API error', { error })
+    logger.error('Get book API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to retrieve book' },
       { status: 500 }

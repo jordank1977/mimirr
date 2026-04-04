@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -44,7 +45,7 @@ export default function DiscoverPage() {
             return
           }
         } catch (e) {
-          console.warn('Failed to parse cached search data', e)
+          logToClient('warn', 'Failed to parse cached search data', { error: e instanceof Error ? e.message : e })
         }
 
         setSearchState('searching')
@@ -60,7 +61,7 @@ export default function DiscoverPage() {
             try {
               sessionStorage.setItem(CACHE_KEY, JSON.stringify([]))
             } catch (e) {
-              console.warn('Failed to cache search data due to storage limit', e)
+              logToClient('warn', 'Failed to cache search data due to storage limit', { error: e instanceof Error ? e.message : e })
             }
             return
           }
@@ -81,11 +82,11 @@ export default function DiscoverPage() {
           try {
             sessionStorage.setItem(CACHE_KEY, JSON.stringify(detailedBooks))
           } catch (e) {
-            console.warn('Failed to cache search data due to storage limit', e)
+            logToClient('warn', 'Failed to cache search data due to storage limit', { error: e instanceof Error ? e.message : e })
           }
 
         } catch (error) {
-          console.error('Search error:', error)
+          logToClient('error', 'Search error:', { error: error instanceof Error ? error.message : error })
           setSearchResults([])
           setSearchState('error')
         }
@@ -114,7 +115,7 @@ export default function DiscoverPage() {
 
         setPersonalizedBooks(personalizedData)
       } catch (error) {
-        console.error('Failed to fetch books:', error)
+        logToClient('error', 'Failed to fetch books:', { error: error instanceof Error ? error.message : error })
       } finally {
         setLoading(false)
       }

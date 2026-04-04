@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
@@ -66,7 +67,7 @@ export default function AllRequestsPage() {
       const data = await response.json()
       setRequests(data.requests || [])
     } catch (error) {
-      console.error('Failed to fetch requests:', error)
+      logToClient('error', 'Failed to fetch requests:', { error: error instanceof Error ? error.message : error })
       setRequests([])
     } finally {
       setLoading(false)
@@ -86,7 +87,7 @@ export default function AllRequestsPage() {
 
       await fetchRequests()
     } catch (error) {
-      console.error('Failed to approve request:', error)
+      logToClient('error', 'Failed to approve request:', { error: error instanceof Error ? error.message : error })
     } finally {
       setApprovingId(null)
     }
@@ -111,7 +112,7 @@ export default function AllRequestsPage() {
       await fetchRequests()
       setDeclineConfirm({ show: false, id: null })
     } catch (error) {
-      console.error('Failed to decline request:', error)
+      logToClient('error', 'Failed to decline request:', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -134,7 +135,7 @@ export default function AllRequestsPage() {
       await fetchRequests()
       setDeleteConfirm({ show: false, id: null })
     } catch (error) {
-      console.error('Failed to delete request:', error)
+      logToClient('error', 'Failed to delete request:', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -152,7 +153,7 @@ export default function AllRequestsPage() {
       // Refresh requests to show updated statuses
       await fetchRequests()
     } catch (error) {
-      console.error('Failed to poll status:', error)
+      logToClient('error', 'Failed to poll status:', { error: error instanceof Error ? error.message : error })
     } finally {
       setPolling(false)
     }

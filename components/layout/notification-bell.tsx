@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState, useRef, memo } from 'react'
 import Link from 'next/link'
@@ -69,7 +70,7 @@ export const NotificationBell = memo(function NotificationBell() {
         setUnreadCount(data.notifications?.filter((n: Notification) => !n.isRead).length || 0)
       }
     } catch (error) {
-      console.error('Failed to fetch notifications:', error)
+      logToClient('error', 'Failed to fetch notifications:', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -78,7 +79,7 @@ export const NotificationBell = memo(function NotificationBell() {
       await fetch(`/api/notifications/${id}`, { method: 'POST' })
       await fetchNotifications()
     } catch (error) {
-      console.error('Failed to mark notification as read:', error)
+      logToClient('error', 'Failed to mark notification as read:', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -88,7 +89,7 @@ export const NotificationBell = memo(function NotificationBell() {
       await fetch('/api/notifications/read-all', { method: 'POST' })
       await fetchNotifications()
     } catch (error) {
-      console.error('Failed to mark all as read:', error)
+      logToClient('error', 'Failed to mark all as read:', { error: error instanceof Error ? error.message : error })
     } finally {
       setLoading(false)
     }

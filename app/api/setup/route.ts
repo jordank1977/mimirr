@@ -16,7 +16,7 @@ async function getHandler() {
 
     return NextResponse.json({ needsSetup })
   } catch (error: any) {
-    logger.error('Failed to check setup status', { error })
+    logger.error('Failed to check setup status', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to check setup status' },
       { status: 500 }
@@ -84,7 +84,7 @@ async function postHandler(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    logger.error('Setup failed', { error })
+    logger.error('Setup failed', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to create admin account' },
       { status: 500 }

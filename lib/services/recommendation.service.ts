@@ -465,7 +465,7 @@ export async function updateUserPreferences(userId: number): Promise<void> {
           }
           recommendedAuthors.push(author)
         } catch (error) {
-          logger.error('Failed to fetch author metadata', { author: authorData.name, error })
+          logger.error('Failed to fetch author metadata', { author: authorData.name, error: error instanceof Error ? error.message : error })
           // Add author without image
           recommendedAuthors.push({
             id: authorData.name.toLowerCase().replace(/\s+/g, '-'),
@@ -487,7 +487,7 @@ export async function updateUserPreferences(userId: number): Promise<void> {
         authors: recommendedAuthors.map(a => a.name)
       })
     } catch (error) {
-      logger.error('Failed to generate cached recommendations', { error, userId })
+      logger.error('Failed to generate cached recommendations', { error: error instanceof Error ? error.message : error, userId })
       // Continue anyway with empty recommendations
     }
 
@@ -536,7 +536,7 @@ export async function updateUserPreferences(userId: number): Promise<void> {
       cachedAuthors: recommendedAuthorBooks.length,
     })
   } catch (error) {
-    logger.error('Failed to update user preferences', { error, userId })
+    logger.error('Failed to update user preferences', { error: error instanceof Error ? error.message : error, userId })
     throw error
   }
 }
@@ -553,7 +553,7 @@ export async function getUserPreferences(userId: number): Promise<UserPreference
 
     return prefs || null
   } catch (error) {
-    logger.error('Failed to get user preferences', { error, userId })
+    logger.error('Failed to get user preferences', { error: error instanceof Error ? error.message : error, userId })
     return null
   }
 }
@@ -566,7 +566,7 @@ export async function getRequestedBookIds(userId: number): Promise<Set<string>> 
     const requests = await RequestService.getRequestsByUserId(userId)
     return new Set(requests.map(r => r.bookId))
   } catch (error) {
-    logger.error('Failed to get requested book IDs', { error, userId })
+    logger.error('Failed to get requested book IDs', { error: error instanceof Error ? error.message : error, userId })
     return new Set()
   }
 }
@@ -589,7 +589,7 @@ export async function getPopularBooksForUser(userId: number, limit: number = 10)
     // TODO: Architect Readarr Lists integration for discovery features.
     return []
   } catch (error) {
-    logger.error('Failed to get popular books for user', { error, userId })
+    logger.error('Failed to get popular books for user', { error: error instanceof Error ? error.message : error, userId })
     return []
   }
 }
@@ -612,7 +612,7 @@ export async function getNewBooksForUser(userId: number, limit: number = 10): Pr
     // TODO: Architect Readarr Lists integration for discovery features.
     return []
   } catch (error) {
-    logger.error('Failed to get new books for user', { error, userId })
+    logger.error('Failed to get new books for user', { error: error instanceof Error ? error.message : error, userId })
     return []
   }
 }
@@ -652,7 +652,7 @@ export async function getAuthorRecommendations(userId: number, limit: number = 1
 
         authorBooks.push(...authorBooksByName)
       } catch (error) {
-        logger.error('Failed to fetch author books', { author, error })
+        logger.error('Failed to fetch author books', { author, error: error instanceof Error ? error.message : error })
       }
     }
 
@@ -682,7 +682,7 @@ export async function getAuthorRecommendations(userId: number, limit: number = 1
 
     return scoredBooks.slice(0, limit).map(s => s.book)
   } catch (error) {
-    logger.error('Failed to get author recommendations', { error, userId })
+    logger.error('Failed to get author recommendations', { error: error instanceof Error ? error.message : error, userId })
     return []
   }
 }

@@ -54,7 +54,7 @@ async function postHandler(request: NextRequest) {
       }
     }
 
-    logger.error('Failed to create user', { error })
+    logger.error('Failed to create user', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to create user' },
       { status: 500 }

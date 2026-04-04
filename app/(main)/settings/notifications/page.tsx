@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { logToClient } from '@/lib/utils/client-logger'
 
 interface NotificationSettings {
   discordEnabled: boolean
@@ -52,7 +53,7 @@ export default function NotificationSettingsPage() {
         setSettings(data)
       }
     } catch (error) {
-      console.error('Failed to fetch notification settings:', error)
+      logToClient('error', 'Failed to fetch notification settings', { error: error instanceof Error ? error.message : error })
     } finally {
       setLoading(false)
     }

@@ -180,6 +180,10 @@ export const logger = {
     if (data) pinoLogger.debug(data, message)
     else pinoLogger.debug(message)
   },
+  trace: (message: string, data?: unknown) => {
+    if (data) pinoLogger.trace(data, message)
+    else pinoLogger.trace(message)
+  },
 }
 
 /**

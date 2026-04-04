@@ -77,7 +77,7 @@ export async function syncQualityProfiles(config: BookshelfConfig): Promise<void
 
     logger.info('Quality profiles synced', { count: profiles.length })
   } catch (error) {
-    logger.error('Failed to sync quality profiles', { error })
+    logger.error('Failed to sync quality profiles', { error: error instanceof Error ? error.message : error })
     throw error
   }
 }
@@ -94,7 +94,7 @@ export async function getQualityProfileConfigs() {
 
     return configs
   } catch (error) {
-    logger.error('Failed to get quality profile configs', { error })
+    logger.error('Failed to get quality profile configs', { error: error instanceof Error ? error.message : error })
     return []
   }
 }
@@ -115,7 +115,7 @@ export async function getEnabledQualityProfiles() {
       name: c.profileName,
     }))
   } catch (error) {
-    logger.error('Failed to get enabled quality profiles', { error })
+    logger.error('Failed to get enabled quality profiles', { error: error instanceof Error ? error.message : error })
     return []
   }
 }
@@ -135,7 +135,7 @@ export async function updateQualityProfileConfig(
 
     logger.info('Quality profile config updated', { profileId, updates })
   } catch (error) {
-    logger.error('Failed to update quality profile config', { error, profileId })
+    logger.error('Failed to update quality profile config', { error: error instanceof Error ? error.message : error, profileId })
     throw error
   }
 }
@@ -155,7 +155,7 @@ export async function reorderQualityProfiles(orderedProfileIds: number[]) {
 
     logger.info('Quality profiles reordered', { count: orderedProfileIds.length })
   } catch (error) {
-    logger.error('Failed to reorder quality profiles', { error })
+    logger.error('Failed to reorder quality profiles', { error: error instanceof Error ? error.message : error })
     throw error
   }
 }

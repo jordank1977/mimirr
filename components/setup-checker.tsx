@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -21,7 +22,7 @@ export function SetupChecker() {
 
         // If API fails, assume setup is needed (fail-safe)
         if (!response.ok) {
-          console.error('Setup API failed, redirecting to setup')
+          logToClient('error', 'Setup API failed, redirecting to setup')
           router.push('/setup')
           return
         }
@@ -32,7 +33,7 @@ export function SetupChecker() {
           router.push('/setup')
         }
       } catch (error) {
-        console.error('Failed to check setup status:', error)
+        logToClient('error', 'Failed to check setup status:', { error: error instanceof Error ? error.message : error })
         // On error, redirect to setup as fail-safe
         router.push('/setup')
       } finally {

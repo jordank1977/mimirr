@@ -29,7 +29,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Get requests API error', { error })
+    logger.error('Get requests API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to retrieve requests' },
       { status: 500 }
@@ -106,7 +106,7 @@ async function postHandler(request: NextRequest) {
         await db.delete(bookCache).where(eq(bookCache.id, validatedData.foreignBookId))
         logger.info('Cleaned up temporary cache for newly added book', { foreignBookId: validatedData.foreignBookId })
       } catch (cacheErr) {
-        logger.error('Failed to clean up temporary cache', { error: cacheErr, foreignBookId: validatedData.foreignBookId })
+        logger.error('Failed to clean up temporary cache', { error: cacheErr instanceof Error ? cacheErr.message : cacheErr, foreignBookId: validatedData.foreignBookId })
       }
       
       return NextResponse.json({ request: newRequest }, { status: 201 })
@@ -125,7 +125,7 @@ async function postHandler(request: NextRequest) {
       // Update user preferences based on new request (non-blocking)
       RecommendationService.updateUserPreferences(user.userId).catch((error) => {
         // Log but don't fail the request
-        logger.error('Failed to update user preferences', { error, userId: user.userId })
+        logger.error('Failed to update user preferences', { error: error instanceof Error ? error.message : error, userId: user.userId })
       })
 
       // Process notifications in the background
@@ -174,7 +174,7 @@ async function postHandler(request: NextRequest) {
               if (profile) qualityProfileName = profile.name
             }
           } catch (error) {
-            logger.error('Failed to fetch quality profile', { error })
+            logger.error('Failed to fetch quality profile', { error: error instanceof Error ? error.message : error })
           }
 
           // Send notification to admins
@@ -200,13 +200,13 @@ async function postHandler(request: NextRequest) {
             '/requests/all'
           )
         } catch (error) {
-          logger.error('Background notification error', { error })
+          logger.error('Background notification error', { error: error instanceof Error ? error.message : error })
         }
       }
 
       // Fire and forget
       processNotifications().catch((err) =>
-        logger.error('Unhandled notification background error', { err })
+        logger.error('Unhandled notification background error', { error: err instanceof Error ? err.message : err })
       )
 
       return NextResponse.json({ request: newRequest }, { status: 201 })
@@ -221,7 +221,7 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    logger.error('Unexpected create request error', { error })
+    logger.error('Unexpected create request error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to create request' },
       { status: 500 }

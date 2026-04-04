@@ -39,7 +39,7 @@ async function postHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Failed to test Discord webhook', { error })
+    logger.error('Failed to test Discord webhook', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to test Discord webhook' },
       { status: 500 }

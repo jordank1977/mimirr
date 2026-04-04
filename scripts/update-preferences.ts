@@ -1,13 +1,19 @@
 // Manually trigger preference update for debugging
 import * as RecommendationService from '../lib/services/recommendation.service'
+import { logger } from '../lib/utils/logger'
 
 const userId = parseInt(process.argv[2] || '3')
 
 ;(async () => {
-  console.log(`Updating preferences for user ${userId}...`)
+  logger.info(`Updating preferences for user ${userId}...`)
 
-  await RecommendationService.updateUserPreferences(userId)
+  try {
+    await RecommendationService.updateUserPreferences(userId)
+    logger.info('Preferences update complete')
+  } catch (error) {
+    logger.error('Failed to update preferences', { error: error instanceof Error ? error.message : error })
+    process.exit(1)
+  }
 
-  console.log('Done!')
   process.exit(0)
 })()

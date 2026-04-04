@@ -174,7 +174,7 @@ async function postHandler(
           await db.delete(bookCache).where(eq(bookCache.id, result.foreignBookId || book.id))
           logger.info('Cleaned up temporary cache for newly added book', { foreignBookId: result.foreignBookId || book.id })
         } catch (cacheErr) {
-          logger.error('Failed to clean up temporary cache', { error: cacheErr, foreignBookId: result.foreignBookId || book.id })
+          logger.error('Failed to clean up temporary cache', { error: cacheErr instanceof Error ? cacheErr.message : cacheErr, foreignBookId: result.foreignBookId || book.id })
         }
 
         // Get requesting user's details for notification
@@ -198,7 +198,7 @@ async function postHandler(
           )
           if (profile) qualityProfileName = profile.name
         } catch (error) {
-          logger.error('Failed to fetch quality profile', { error })
+          logger.error('Failed to fetch quality profile', { error: error instanceof Error ? error.message : error })
         }
 
         // Send notification to user
@@ -257,7 +257,7 @@ async function postHandler(
 
     // Fire and forget the background task
     processBookshelfAddition().catch((err) =>
-      logger.error('Unhandled background addition error', { err })
+      logger.error('Unhandled background addition error', { error: err instanceof Error ? err.message : err })
     )
 
     return NextResponse.json({ request: updatedRequest })
@@ -266,7 +266,7 @@ async function postHandler(
       return handleAuthError(error)
     }
 
-    logger.error('Approve request API error', { error })
+    logger.error('Approve request API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to approve request' },
       { status: 500 }

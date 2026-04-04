@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
@@ -60,7 +61,7 @@ export default function LogsSettingsPage() {
         if (!isAutoRefresh) setLogContent(`Error loading log file: ${response.status} ${response.statusText}`)
       }
     } catch (error) {
-      console.error('Failed to fetch log content:', error)
+      logToClient('error', 'Failed to fetch log content:', { error: error instanceof Error ? error.message : error })
       if (!isAutoRefresh) setLogContent('Error loading log content')
     } finally {
       if (!isAutoRefresh) setLoadingContent(false)
@@ -77,7 +78,7 @@ export default function LogsSettingsPage() {
           setLogLevel(data.level)
         }
       } catch (error) {
-        console.error('Failed to fetch log settings:', error)
+        logToClient('error', 'Failed to fetch log settings:', { error: error instanceof Error ? error.message : error })
       } finally {
         setLoading(false)
       }
@@ -111,7 +112,7 @@ export default function LogsSettingsPage() {
           }
         }
       } catch (error) {
-        console.error('Failed to fetch log files:', error)
+        logToClient('error', 'Failed to fetch log files:', { error: error instanceof Error ? error.message : error })
       } finally {
         setLoadingLogs(false)
       }

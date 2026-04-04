@@ -51,7 +51,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Failed to get notification settings', { error })
+    logger.error('Failed to get notification settings', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to get notification settings' },
       { status: 500 }
@@ -106,7 +106,7 @@ async function postHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Failed to save notification settings', { error })
+    logger.error('Failed to save notification settings', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to save notification settings' },
       { status: 500 }

@@ -5,10 +5,11 @@ import { logger } from '@/lib/utils/logger'
 import { timingSafeCompare } from '@/lib/utils/crypto'
 import { ReadarrJobOrchestrator } from '@/lib/services/orchestrator.service'
 import { requireAdmin, AuthError } from '@/lib/middleware/auth.middleware'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export const POST = withLogging(async function POST(request: NextRequest) {
   try {
     // 1. Dual-Authorization Check
     let isAuthorized = false
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     // Kick off in background
     runOrchestrator().catch((err) => {
-      logger.error('Unhandled error in background orchestrator', { error: err })
+      logger.error('Unhandled error in background orchestrator', { error: err instanceof Error ? err.message : err })
     })
 
     return NextResponse.json(
@@ -127,10 +128,10 @@ export async function POST(request: NextRequest) {
       { status: 202 }
     )
   } catch (error) {
-    logger.error('Error starting readarr scan', { error })
+    logger.error('Error starting readarr scan', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
     )
   }
-}
+});

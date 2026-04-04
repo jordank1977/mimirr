@@ -83,7 +83,7 @@ async function patchHandler(
       }
     }
 
-    logger.error('Failed to update user', { error })
+    logger.error('Failed to update user', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to update user' },
       { status: 500 }
@@ -131,7 +131,7 @@ async function deleteHandler(
       }
     }
 
-    logger.error('Failed to delete user', { error })
+    logger.error('Failed to delete user', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to delete user' },
       { status: 500 }

@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -62,7 +63,7 @@ export default function UsersManagementPage() {
       setUsers(data.users || [])
       setStats(data.stats || { total: 0, admins: 0, regularUsers: 0 })
     } catch (error) {
-      console.error('Failed to fetch users:', error)
+      logToClient('error', 'Failed to fetch users:', { error: error instanceof Error ? error.message : error })
     } finally {
       setLoading(false)
     }
@@ -80,7 +81,7 @@ export default function UsersManagementPage() {
 
       if (!response.ok) {
         const error = await response.json()
-        console.error('Failed to create user:', error.error)
+        logToClient('error', 'Failed to create user:', { error: error.error instanceof Error ? error.error.message : error.error })
         return
       }
 
@@ -94,7 +95,7 @@ export default function UsersManagementPage() {
       })
       await fetchUsers()
     } catch (error) {
-      console.error('Failed to create user:', error)
+      logToClient('error', 'Failed to create user:', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -108,14 +109,14 @@ export default function UsersManagementPage() {
 
       if (!response.ok) {
         const error = await response.json()
-        console.error('Failed to update user:', error.error)
+        logToClient('error', 'Failed to update user:', { error: error.error instanceof Error ? error.error.message : error.error })
         return
       }
 
       setEditingUser(null)
       await fetchUsers()
     } catch (error) {
-      console.error('Failed to update user:', error)
+      logToClient('error', 'Failed to update user:', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -133,13 +134,13 @@ export default function UsersManagementPage() {
 
       if (!response.ok) {
         const error = await response.json()
-        console.error('Failed to delete user:', error.error)
+        logToClient('error', 'Failed to delete user:', { error: error.error instanceof Error ? error.error.message : error.error })
         return
       }
 
       await fetchUsers()
     } catch (error) {
-      console.error('Failed to delete user:', error)
+      logToClient('error', 'Failed to delete user:', { error: error instanceof Error ? error.message : error })
     }
   }
 

@@ -21,7 +21,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Failed to get notifications', { error })
+    logger.error('Failed to get notifications', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to get notifications' },
       { status: 500 }

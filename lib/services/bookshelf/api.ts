@@ -1,4 +1,5 @@
 import { BookshelfConfig } from '@/types/bookshelf.types';
+import { logger } from '@/lib/utils/logger';
 
 const DEFAULT_TIMEOUT = 60000;
 
@@ -17,6 +18,7 @@ export async function fetchWithTimeout<T>(
   const url = `${config.url.replace(/\/$/, '')}${endpoint}`;
 
   try {
+    logger.trace('Outgoing Bookshelf API Request', { url, method: options.method || 'GET' });
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
@@ -27,11 +29,20 @@ export async function fetchWithTimeout<T>(
       },
     });
 
+    logger.trace('Bookshelf API Response', { url, status: response.status });
+
     if (!response.ok) {
       throw new Error(`Bookshelf API error: ${response.status} ${response.statusText}`);
     }
 
     return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      logger.error('Bookshelf API Request Timed Out', { url, timeout: DEFAULT_TIMEOUT });
+    } else {
+      logger.error('Bookshelf API Request Failed', { url, error: error instanceof Error ? error.message : error });
+    }
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }

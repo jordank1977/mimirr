@@ -70,7 +70,7 @@ export class BookService {
 
       logger.debug('Book cached', { bookId: book.id, title: book.title })
     } catch (error) {
-      logger.error('Failed to cache book', { error, bookId: book.id })
+      logger.error('Failed to cache book', { error: error instanceof Error ? error.message : error, bookId: book.id })
       // Don't throw - caching is not critical
     }
   }
@@ -85,7 +85,7 @@ export class BookService {
         .set({ lastAccessedAt: new Date() })
         .where(eq(bookCache.id, bookId))
     } catch (error) {
-      logger.error('Failed to update last accessed', { error, bookId })
+      logger.error('Failed to update last accessed', { error: error instanceof Error ? error.message : error, bookId })
     }
   }
 
@@ -223,7 +223,7 @@ export class BookService {
 
       return results
     } catch (error) {
-      logger.error('Failed to get books by IDs', { error, count: ids.length })
+      logger.error('Failed to get books by IDs', { error: error instanceof Error ? error.message : error, count: ids.length })
       for (const id of ids) {
         if (!results.has(id)) {
           results.set(id, null)
@@ -273,7 +273,7 @@ export class BookService {
             targetBookShape = books[0];
           }
         } catch (innerError) {
-          logger.error('Failed to look up book in Readarr via ReadarrService', { error: innerError, bookId: id })
+          logger.error('Failed to look up book in Readarr via ReadarrService', { error: innerError instanceof Error ? innerError.message : innerError, bookId: id })
           throw innerError
         }
 
@@ -327,7 +327,7 @@ export class BookService {
         return null
       }
     } catch (error) {
-      logger.error('Failed to get book by ID', { error, bookId: id })
+      logger.error('Failed to get book by ID', { error: error instanceof Error ? error.message : error, bookId: id })
       throw new Error('Failed to retrieve book')
     }
   }

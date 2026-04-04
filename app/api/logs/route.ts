@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/middleware/auth.middleware'
-import { logDir } from '@/lib/utils/logger'
+import { logger, logDir } from '@/lib/utils/logger'
 import fs from 'fs/promises'
 import path from 'path'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 
-export async function GET(request: NextRequest) {
+export const GET = withLogging(async function GET(request: NextRequest) {
   try {
     // Ensure only admins can access logs
     await requireAdmin(request)
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(logFiles)
   } catch (error) {
-    console.error('Error fetching log files:', error)
+    logger.error('Error fetching log files:', { error: error instanceof Error ? error.message : error })
     
     // Handle authentication errors
     if (error instanceof Error && error.name === 'AuthError') {
@@ -59,4 +60,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+});

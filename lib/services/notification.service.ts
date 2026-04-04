@@ -42,7 +42,7 @@ export class NotificationService {
 
       return result[0] || null
     } catch (error) {
-      logger.error('Failed to get notification settings', { error })
+      logger.error('Failed to get notification settings', { error: error instanceof Error ? error.message : error })
       return null
     }
   }
@@ -118,7 +118,7 @@ export class NotificationService {
 
       return result[0]
     } catch (error) {
-      logger.error('Failed to update notification settings', { error })
+      logger.error('Failed to update notification settings', { error: error instanceof Error ? error.message : error })
       throw error
     }
   }
@@ -200,7 +200,7 @@ export class NotificationService {
       logger.info('Discord notification sent', { type, notificationTitle })
       return true
     } catch (error) {
-      logger.error('Failed to send Discord notification', { error, type, notificationTitle })
+      logger.error('Failed to send Discord notification', { error: error instanceof Error ? error.message : error, type, notificationTitle })
       return false
     }
   }
@@ -227,7 +227,7 @@ export class NotificationService {
       await db.insert(notifications).values(notification)
       logger.info('In-app notification created', { userId, type, title })
     } catch (error) {
-      logger.error('Failed to create in-app notification', { error, userId, type })
+      logger.error('Failed to create in-app notification', { error: error instanceof Error ? error.message : error, userId, type })
       throw error
     }
   }
@@ -283,7 +283,7 @@ export class NotificationService {
         userCount: userIds.length
       })
     } catch (error) {
-      logger.error('Failed to send notification', { error, userId, type })
+      logger.error('Failed to send notification', { error: error instanceof Error ? error.message : error, userId, type })
     }
   }
 
@@ -305,7 +305,7 @@ export class NotificationService {
 
       return adminIds
     } catch (error) {
-      logger.error('Failed to get admin user IDs', { error })
+      logger.error('Failed to get admin user IDs', { error: error instanceof Error ? error.message : error })
       return []
     }
   }
@@ -325,7 +325,7 @@ export class NotificationService {
       logger.debug('Retrieved notifications for user', { userId, count: result.length })
       return result
     } catch (error) {
-      logger.error('Failed to get user notifications', { error, userId })
+      logger.error('Failed to get user notifications', { error: error instanceof Error ? error.message : error, userId })
       return []
     }
   }
@@ -342,7 +342,7 @@ export class NotificationService {
 
       return result.length
     } catch (error) {
-      logger.error('Failed to get unread count', { error, userId })
+      logger.error('Failed to get unread count', { error: error instanceof Error ? error.message : error, userId })
       return 0
     }
   }
@@ -357,7 +357,7 @@ export class NotificationService {
         .set({ isRead: true })
         .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)))
     } catch (error) {
-      logger.error('Failed to mark notification as read', { error, notificationId })
+      logger.error('Failed to mark notification as read', { error: error instanceof Error ? error.message : error, notificationId })
       throw error
     }
   }
@@ -372,7 +372,7 @@ export class NotificationService {
         .set({ isRead: true })
         .where(eq(notifications.userId, userId))
     } catch (error) {
-      logger.error('Failed to mark all notifications as read', { error, userId })
+      logger.error('Failed to mark all notifications as read', { error: error instanceof Error ? error.message : error, userId })
       throw error
     }
   }
@@ -404,7 +404,7 @@ export class NotificationService {
 
       return response.ok
     } catch (error) {
-      logger.error('Failed to test Discord webhook', { error })
+      logger.error('Failed to test Discord webhook', { error: error instanceof Error ? error.message : error })
       return false
     }
   }

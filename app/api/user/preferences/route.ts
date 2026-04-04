@@ -44,7 +44,7 @@ async function patchHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Failed to update user preferences', { error })
+    logger.error('Failed to update user preferences', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to update preferences' },
       { status: 500 }

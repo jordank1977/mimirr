@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,7 +25,7 @@ export default function GeneralSettingsPage() {
         setUsername(data.user?.username || '')
         setEmail(data.user?.email || '')
       } catch (error) {
-        console.error('Failed to fetch preferences:', error)
+        logToClient('error', 'Failed to fetch preferences:', { error: error instanceof Error ? error.message : error })
       } finally {
         setLoading(false)
       }

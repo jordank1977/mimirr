@@ -38,7 +38,7 @@ async function loginHandler(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 401 })
     }
 
-    logger.error('Unexpected login error', { error })
+    logger.error('Unexpected login error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

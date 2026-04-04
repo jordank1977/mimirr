@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { BookGrid } from '@/components/book/book-grid'
 import type { Book } from '@/types/bookinfo'
+import { logToClient } from '@/lib/utils/client-logger'
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
@@ -43,7 +44,7 @@ export default function SearchPage() {
       setBooks(detailedBooks as any)
       setSearchState('success')
     } catch (error) {
-      console.error('Search error:', error)
+      logToClient('error', 'Search error', { error: error instanceof Error ? error.message : error })
       setSearchState('error')
     }
   }

@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import { RequestList } from '@/components/request/request-list'
@@ -59,7 +60,7 @@ export default function RequestsPage() {
       const data = await response.json()
       setRequests(data.requests || [])
     } catch (error) {
-      console.error('Failed to fetch requests:', error)
+      logToClient('error', 'Failed to fetch requests:', { error: error instanceof Error ? error.message : error })
       setRequests([])
     } finally {
       setLoading(false)
@@ -85,7 +86,7 @@ export default function RequestsPage() {
       // Refresh requests
       await fetchRequests()
     } catch (error) {
-      console.error('Failed to delete request:', error)
+      logToClient('error', 'Failed to delete request:', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -102,7 +103,7 @@ export default function RequestsPage() {
 
       await fetchRequests()
     } catch (error) {
-      console.error('Failed to poll status:', error)
+      logToClient('error', 'Failed to poll status:', { error: error instanceof Error ? error.message : error })
     } finally {
       setPolling(false)
     }

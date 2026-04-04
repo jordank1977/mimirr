@@ -8,6 +8,7 @@ export class ReadarrJobOrchestrator {
   static async startJob(jobId: number, config: BookshelfConfig): Promise<void> {
     try {
       logger.info('Orchestrator starting Readarr job', { jobId })
+      logger.debug('Readarr job configuration', { jobId, configUrl: config.url })
 
       // 1. Mark job as scanning
       await db.update(syncJobs)
@@ -27,9 +28,10 @@ export class ReadarrJobOrchestrator {
         .where(eq(syncJobs.id, jobId))
 
       logger.info('Orchestrator completed Readarr job successfully', { jobId })
+      logger.trace('Job execution report', { jobId, report })
 
     } catch (error: any) {
-      logger.error('Orchestrator encountered error during Readarr job', { error, jobId })
+      logger.error('Orchestrator encountered error during Readarr job', { error: error instanceof Error ? error.message : error, jobId })
 
       try {
         await db.update(syncJobs)

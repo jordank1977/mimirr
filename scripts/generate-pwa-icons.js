@@ -22,7 +22,7 @@ async function generateIcons() {
       .png()
       .toFile(outputPath);
 
-    console.log(`✓ Generated ${name} (${size}x${size})`);
+    console.log(`✓ Generated ${name} (${size}x${size})`); // Build script, logger isn't available/compatible here
   }
 
   console.log('\n✓ All PWA icons generated successfully!');

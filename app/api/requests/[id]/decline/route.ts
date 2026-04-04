@@ -76,7 +76,7 @@ async function postHandler(
           if (profile) qualityProfileName = profile.name
         }
       } catch (error) {
-        logger.error('Failed to fetch quality profile', { error })
+        logger.error('Failed to fetch quality profile', { error: error instanceof Error ? error.message : error })
       }
 
       await NotificationService.sendNotification(
@@ -100,7 +100,7 @@ async function postHandler(
       return handleAuthError(error)
     }
 
-    logger.error('Decline request API error', { error })
+    logger.error('Decline request API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to decline request' },
       { status: 500 }

@@ -1,15 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { settings } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { SyncService } from '@/lib/services/sync.service';
 import { logger } from '@/lib/utils/logger';
+import { withLogging } from '@/lib/middleware/logging.middleware';
 
 export const dynamic = 'force-dynamic';
 // Increase Vercel function timeout if deployed on Vercel, though this is primarily for self-hosted Docker
 export const maxDuration = 300;
 
-export async function POST(request: Request) {
+export const POST = withLogging(async function POST(request: NextRequest) {
   try {
     // 1. Authorization (OPSEC)
     const adminKey = request.headers.get('x-mimirr-admin-key');
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       );
     }
 
-    logger.info('Triggering manual Baseline Sync');
+    logger.debug('Triggering manual Baseline Sync');
 
     const bookshelfConfig = {
       url: bookshelfUrl,
@@ -59,10 +60,10 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
-    logger.error('Error executing Baseline Sync route', { error });
+    logger.error('Error executing Baseline Sync route', { error: error instanceof Error ? error.message : error });
     return NextResponse.json(
       { error: 'Internal Server Error during Baseline Sync' },
       { status: 500 }
     );
   }
-}
+});

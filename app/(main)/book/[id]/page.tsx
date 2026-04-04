@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import { use } from 'react'
@@ -104,7 +105,7 @@ export default function BookPage({
         }
       } catch (refreshError) {
         // Silently fail - the main request was successful
-        console.error('Failed to refresh book data:', refreshError)
+        logToClient('error', 'Failed to refresh book data:', { error: refreshError instanceof Error ? refreshError.message : refreshError })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create request')

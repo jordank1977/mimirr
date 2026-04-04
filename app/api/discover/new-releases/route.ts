@@ -22,7 +22,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Get new releases API error', { error })
+    logger.error('Get new releases API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to retrieve new releases' },
       { status: 500 }

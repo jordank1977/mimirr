@@ -36,7 +36,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Get log settings error', { error })
+    logger.error('Get log settings error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to retrieve log settings' },
       { status: 500 }
@@ -94,7 +94,7 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid log level' }, { status: 400 })
     }
 
-    logger.error('Update log settings error', { error })
+    logger.error('Update log settings error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to update log settings' },
       { status: 500 }

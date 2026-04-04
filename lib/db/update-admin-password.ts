@@ -3,12 +3,12 @@ import { createClient } from '@libsql/client'
 import { users } from './schema'
 import { eq } from 'drizzle-orm'
 import { hashPassword } from '@/lib/utils/crypto'
+import { logger } from '@/lib/utils/logger'
 
 async function updateAdminPassword() {
   const newPassword = process.env.ADMIN_PASSWORD
   if (!newPassword) {
-    console.error('Error: ADMIN_PASSWORD environment variable is required.')
-    console.error('Usage: ADMIN_PASSWORD=your_new_password npm run db:reset-admin')
+    logger.error('ADMIN_PASSWORD environment variable is required. Usage: ADMIN_PASSWORD=your_new_password npm run db:reset-admin')
     process.exit(1)
   }
 
@@ -23,7 +23,7 @@ async function updateAdminPassword() {
 
   const passwordHash = await hashPassword(newPassword)
 
-  console.log(`Updating password for user '${targetUsername}'...`)
+  logger.info(`Updating password for user '${targetUsername}'...`)
 
   const result = await db
     .update(users)
@@ -35,16 +35,16 @@ async function updateAdminPassword() {
     .returning()
 
   if (result.length === 0) {
-    console.error(`Error: User '${targetUsername}' not found in the database.`)
+    logger.error(`User '${targetUsername}' not found in the database.`)
     process.exit(1)
   }
 
-  console.log('✓ Admin password successfully updated.')
+  logger.info('✓ Admin password successfully updated.')
 
   process.exit(0)
 }
 
 updateAdminPassword().catch((err) => {
-  console.error('Update failed:', err)
+  logger.error('Update failed', { error: err instanceof Error ? err.message : err })
   process.exit(1)
 })

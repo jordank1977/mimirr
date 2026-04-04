@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -35,7 +36,7 @@ export default function SettingsLayout({
         const data = await response.json()
         setUserRole(data.user?.role || 'user')
       } catch (error) {
-        console.error('Failed to fetch user role:', error)
+        logToClient('error', 'Failed to fetch user role:', { error: error instanceof Error ? error.message : error })
         setUserRole('user')
       } finally {
         setLoading(false)

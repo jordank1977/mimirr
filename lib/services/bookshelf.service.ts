@@ -24,15 +24,17 @@ export class BookshelfService {
    */
   static async testConnection(config: BookshelfConfig): Promise<boolean> {
     try {
+      logger.trace('Testing connection to Bookshelf API', { url: config.url })
       const response = await fetch(`${config.url}/api/v3/system/status`, {
         headers: {
           'X-Api-Key': config.apiKey,
         },
       })
 
+      logger.trace('Bookshelf API connection response', { url: config.url, status: response.status })
       return response.ok
     } catch (error) {
-      logger.error('Bookshelf connection test failed', { error })
+      logger.error('Bookshelf connection test failed', { error: error instanceof Error ? error.message : error })
       return false
     }
   }

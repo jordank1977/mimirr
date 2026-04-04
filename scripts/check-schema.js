@@ -1,4 +1,5 @@
 import { createClient } from '@libsql/client'
+import { logger } from '../lib/utils/logger'
 
 async function checkSchema() {
   const databaseUrl = process.env.DATABASE_URL || 'file:./config/db.sqlite'
@@ -7,42 +8,42 @@ async function checkSchema() {
     url: databaseUrl,
   })
 
-  console.log('Checking requests table schema...')
+  logger.info('Checking requests table schema...')
 
   // Check if new columns exist
   try {
     const result = await client.execute('PRAGMA table_info(requests)')
-    console.log('\nRequests table columns:')
-    result.rows.forEach(row => {
-      console.log(`  - ${row.name} (${row.type})`)
-    })
+
+    const columns = result.rows.map(row => `${row.name} (${row.type})`)
+    logger.info('Requests table columns:', { columns })
 
     const hasCompletedAt = result.rows.some(row => row.name === 'completed_at')
     const hasLastPolledAt = result.rows.some(row => row.name === 'last_polled_at')
 
-    console.log('\nNew columns status:')
-    console.log(`  completed_at: ${hasCompletedAt ? '✓ exists' : '✗ missing'}`)
-    console.log(`  last_polled_at: ${hasLastPolledAt ? '✓ exists' : '✗ missing'}`)
+    logger.info('New columns status:', {
+      completed_at: hasCompletedAt ? '✓ exists' : '✗ missing',
+      last_polled_at: hasLastPolledAt ? '✓ exists' : '✗ missing'
+    })
 
     if (!hasCompletedAt || !hasLastPolledAt) {
-      console.log('\nApplying migration...')
+      logger.info('Applying migration...')
 
       if (!hasCompletedAt) {
         await client.execute('ALTER TABLE requests ADD COLUMN completed_at INTEGER')
-        console.log('  ✓ Added completed_at')
+        logger.info('✓ Added completed_at')
       }
 
       if (!hasLastPolledAt) {
         await client.execute('ALTER TABLE requests ADD COLUMN last_polled_at INTEGER')
-        console.log('  ✓ Added last_polled_at')
+        logger.info('✓ Added last_polled_at')
       }
 
-      console.log('\nMigration complete!')
+      logger.info('Migration complete!')
     } else {
-      console.log('\nAll columns exist ✓')
+      logger.info('All columns exist ✓')
     }
   } catch (error) {
-    console.error('Error:', error)
+    logger.error('Error in schema check', { error: error instanceof Error ? error.message : error })
   }
 
   process.exit(0)

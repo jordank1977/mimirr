@@ -4,8 +4,10 @@ import { requests, settings } from '@/lib/db/schema';
 import { inArray, isNotNull, eq } from 'drizzle-orm';
 import { BookshelfService } from '@/lib/services/bookshelf.service';
 import { logger } from '@/lib/utils/logger';
+import { withLogging } from '@/lib/middleware/logging.middleware';
+import { NextRequest } from 'next/server';
 
-export async function GET(request: Request) {
+export const GET = withLogging(async function GET(request: NextRequest) {
   try {
     // 1. Authorization (OPSEC)
     const adminKey = request.headers.get('x-mimirr-admin-key');
@@ -97,10 +99,10 @@ export async function GET(request: Request) {
     return NextResponse.json(report);
 
   } catch (error) {
-    logger.error('Error in sync-audit route', { error });
+    logger.error('Error in sync-audit route', { error: error instanceof Error ? error.message : error });
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
     );
   }
-}
+});

@@ -45,7 +45,7 @@ async function getHandler(request: Request) {
       return handleAuthError(error)
     }
 
-    logger.error('Failed to get sync status', { error })
+    logger.error('Failed to get sync status', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

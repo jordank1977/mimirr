@@ -21,7 +21,7 @@ async function handler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Get all requests API error', { error })
+    logger.error('Get all requests API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to retrieve requests' },
       { status: 500 }

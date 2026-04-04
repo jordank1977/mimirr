@@ -1,4 +1,5 @@
 'use client'
+import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -132,6 +133,10 @@ export default function BookshelfSettingsPage() {
   const [adminKey, setAdminKey] = useState('')
   const [syncJob, setSyncJob] = useState<any>(null)
   const [startingScan, setStartingScan] = useState(false)
+  const [scanMessage, setScanMessage] = useState<{
+    type: 'success' | 'error'
+    text: string
+  } | null>(null)
 
   useEffect(() => {
     setAdminKey(getAdminKey())
@@ -145,6 +150,7 @@ export default function BookshelfSettingsPage() {
   }
 
   const hasUnsavedChanges = formData.url !== initialFormData.url || formData.apiKey !== initialFormData.apiKey
+  const isConfigured = Boolean(initialFormData.url && initialFormData.apiKey)
 
   // Reset test status when form data changes
   useEffect(() => {
@@ -215,11 +221,12 @@ export default function BookshelfSettingsPage() {
 
   async function handleStartScan() {
     if (!adminKey) {
-      alert('Please enter your Mimirr Admin Key to start a scan.')
+      setScanMessage({ type: 'error', text: 'Please enter your Mimirr Admin Key to start a scan.' })
       return
     }
 
     setStartingScan(true)
+    setScanMessage(null)
     try {
       const response = await fetch('/api/admin/readarr/start-scan', {
         method: 'POST',
@@ -234,9 +241,11 @@ export default function BookshelfSettingsPage() {
 
       // Update local state to trigger polling
       setSyncJob({ status: 'scanning', currentLogMessage: 'Initializing scan...' })
+      setScanMessage({ type: 'success', text: 'Scan started successfully.' })
 
     } catch (e: any) {
-      alert(e.message)
+      setScanMessage({ type: 'error', text: e.message || 'Failed to start scan' })
+      logToClient('error', 'Failed to start scan:', { error: e.message || e })
     } finally {
       setStartingScan(false)
     }
@@ -259,7 +268,7 @@ export default function BookshelfSettingsPage() {
         setInitialFormData(settings)
       }
     } catch (error) {
-      console.error('Failed to fetch settings:', error)
+      logToClient('error', 'Failed to fetch settings:', { error: error instanceof Error ? error.message : error })
     } finally {
       setLoading(false)
     }
@@ -275,7 +284,7 @@ export default function BookshelfSettingsPage() {
         setQualityProfiles(data.profiles || [])
       }
     } catch (error) {
-      console.error('Failed to fetch quality profiles:', error)
+      logToClient('error', 'Failed to fetch quality profiles:', { error: error instanceof Error ? error.message : error })
     } finally {
       setProfilesLoading(false)
     }
@@ -295,7 +304,7 @@ export default function BookshelfSettingsPage() {
         )
       }
     } catch (error) {
-      console.error('Failed to toggle profile:', error)
+      logToClient('error', 'Failed to toggle profile:', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -320,7 +329,7 @@ export default function BookshelfSettingsPage() {
         }),
       })
     } catch (error) {
-      console.error('Failed to save profile order:', error)
+      logToClient('error', 'Failed to save profile order:', { error: error instanceof Error ? error.message : error })
       // Revert on error
       setQualityProfiles(qualityProfiles)
     }
@@ -350,6 +359,7 @@ export default function BookshelfSettingsPage() {
         type: 'success',
         message: `Connected successfully! Found ${data.profileCount || 0} quality profiles.`,
       })
+      logToClient('info', 'Bookshelf connection test successful')
 
       // Update quality profiles preview (but don't save to settings yet)
       if (data.profiles) {
@@ -377,10 +387,12 @@ export default function BookshelfSettingsPage() {
         });
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Connection test failed'
       setTestStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Connection test failed',
+        message: errorMessage,
       })
+      logToClient('error', 'Bookshelf connection test failed:', { error: errorMessage })
     } finally {
       setTesting(false)
     }
@@ -415,10 +427,12 @@ export default function BookshelfSettingsPage() {
       // Fetch quality profiles after successful save
       await fetchQualityProfiles()
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save settings'
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Failed to save settings',
+        text: errorMessage,
       })
+      logToClient('error', 'Failed to save Bookshelf settings:', { error: errorMessage })
     } finally {
       setSaving(false)
     }
@@ -564,7 +578,7 @@ export default function BookshelfSettingsPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={saving || testing || !hasUnsavedChanges}
+                disabled={saving || testing || (!hasUnsavedChanges && testStatus?.type !== 'success')}
                 className="flex-1"
               >
                 {saving ? 'Saving...' : 'Save'}
@@ -633,15 +647,39 @@ export default function BookshelfSettingsPage() {
 
             <Button
               onClick={handleStartScan}
-              disabled={startingScan || !adminKey || (testStatus?.type !== 'success') || hasUnsavedChanges || (syncJob && syncJob.status === 'scanning')}
+              disabled={startingScan || !adminKey || !isConfigured || hasUnsavedChanges || testStatus?.type === 'error' || (syncJob && syncJob.status === 'scanning')}
             >
-              {startingScan ? 'Starting...' : 'Scan Library'}
+              {startingScan
+                ? 'Starting...'
+                : (syncJob && syncJob.status === 'scanning')
+                  ? 'Background Scan Active...'
+                  : 'Scan Library'}
             </Button>
 
-            {testStatus?.type !== 'success' && (
+            {hasUnsavedChanges ? (
               <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                You must test and save a successful connection before scanning.
+                You have unsaved changes that must be saved before scanning.
               </p>
+            ) : !isConfigured ? (
+              <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                You must configure and save your connection settings before scanning.
+              </p>
+            ) : testStatus?.type === 'error' ? (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                Cannot scan because the current connection test failed.
+              </p>
+            ) : null}
+
+            {scanMessage && (
+              <div
+                className={`px-4 py-3 rounded-md text-sm ${
+                  scanMessage.type === 'success'
+                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400'
+                    : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'
+                }`}
+              >
+                {scanMessage.text}
+              </div>
             )}
 
             {syncJob && (syncJob.status !== 'idle') && (

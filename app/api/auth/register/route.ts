@@ -41,7 +41,7 @@ async function registerHandler(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    logger.error('Unexpected registration error', { error })
+    logger.error('Unexpected registration error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

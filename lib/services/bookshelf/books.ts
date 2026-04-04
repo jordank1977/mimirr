@@ -13,7 +13,7 @@ export async function getLibraryBooks(config: BookshelfConfig): Promise<any[]> {
   try {
     return await apiGet<any[]>(config, '/api/v1/book')
   } catch (error) {
-    logger.error('Failed to get library books from Bookshelf', { error })
+    logger.error('Failed to get library books from Bookshelf', { error: error instanceof Error ? error.message : error })
     return []
   }
 }
@@ -22,7 +22,7 @@ export async function getBook(config: BookshelfConfig, bookId: number): Promise<
   try {
     return await apiGet<any>(config, `/api/v1/book/${bookId}`)
   } catch (error) {
-    logger.error(`Failed to get book ${bookId} from Bookshelf`, { error })
+    logger.error(`Failed to get book ${bookId} from Bookshelf`, { error: error instanceof Error ? error.message : error })
     return null
   }
 }
@@ -31,7 +31,7 @@ export async function getBookEditions(config: BookshelfConfig, bookId: number): 
   try {
     return await apiGet<any[]>(config, `/api/v1/edition?bookId=${bookId}`)
   } catch (error) {
-    logger.error(`Failed to get editions for book ${bookId} from Bookshelf`, { error })
+    logger.error(`Failed to get editions for book ${bookId} from Bookshelf`, { error: error instanceof Error ? error.message : error })
     return []
   }
 }
@@ -188,7 +188,7 @@ export async function lookupAuthor(
     });
     return [];
   } catch (error) {
-    logger.error('Failed to lookup author in Bookshelf', { error, authorName });
+    logger.error('Failed to lookup author in Bookshelf', { error: error instanceof Error ? error.message : error, authorName });
     return [];
   }
 }
@@ -219,7 +219,7 @@ export async function searchBooks(
     
     return bookResults;
   } catch (error) {
-    logger.error('Failed to search books via Bookshelf', { error, term });
+    logger.error('Failed to search books via Bookshelf', { error: error instanceof Error ? error.message : error, term });
     return [];
   }
 }
@@ -234,7 +234,7 @@ export async function getRootFolders(config: BookshelfConfig): Promise<any[]> {
     const folders = await fetchWithTimeout<any[]>(config, url);
     return folders;
   } catch (error) {
-    logger.error('Failed to get root folders', { error });
+    logger.error('Failed to get root folders', { error: error instanceof Error ? error.message : error });
     return [];
   }
 }
@@ -332,7 +332,7 @@ export async function addBook(
       }
     } catch (error) {
       // Continue if library fetch fails
-      logger.warn('Failed to fetch library, continuing with book addition', { error });
+      logger.warn('Failed to fetch library, continuing with book addition', { error: error instanceof Error ? error.message : error });
     }
 
     // Step 3: The Circuit Breaker (Author Deduplication)
@@ -350,7 +350,7 @@ export async function addBook(
       }
     } catch (error) {
       // Continue if authors fetch fails
-      logger.warn('Failed to fetch authors, continuing with book addition', { error });
+      logger.warn('Failed to fetch authors, continuing with book addition', { error: error instanceof Error ? error.message : error });
     }
 
     // Step 4: The Atomic POST (Ironclad Locks)
@@ -632,7 +632,7 @@ export async function triggerBookSearch(
     return { success: true };
   } catch (error: any) {
     if (error.name === 'AbortError') return { success: false, error: 'Bookshelf Connection Timeout' };
-    logger.error('Failed to trigger book search in Bookshelf', { error, bookIds });
+    logger.error('Failed to trigger book search in Bookshelf', { error: error instanceof Error ? error.message : error, bookIds });
     return { success: false, error: error.message };
   }
 }

@@ -79,6 +79,7 @@ export class ReadarrService {
       const searchUrl = `${url}/api/v1/search?term=${term}`
 
       logger.info(`Searching Readarr with query: ${query}`)
+      logger.trace('Outgoing Readarr API Request', { url: searchUrl, method: 'GET' })
 
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000)
@@ -94,6 +95,8 @@ export class ReadarrService {
           },
           signal: controller.signal
         })
+
+        logger.trace('Readarr API Response', { url: searchUrl, status: response.status })
 
         if (!response.ok) {
           throw new Error(`Readarr search failed with status: ${response.status}`)
@@ -161,23 +164,28 @@ export class ReadarrService {
           // Upsert all mapped books into cache sequentially
           for (const mappedBook of mappedBooks) {
             try {
-              console.info(`[HYDRATE] Caching book: ${mappedBook.title} (${mappedBook.id})`);
+              logger.info(`[HYDRATE] Caching book`, { title: mappedBook.title, id: mappedBook.id });
               // Cast it to the shape BookService expects
               await BookService.cacheBook(mappedBook as any);
             } catch (err) {
-              logger.error(`Failed to immediately cache book ${mappedBook.id}`, { error: err });
+              logger.error(`Failed to immediately cache book`, { error: err instanceof Error ? err.message : err, bookId: mappedBook.id });
             }
           }
 
           return mappedBooks;
         }
         return []
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          logger.error('Readarr API Request Timed Out', { url: searchUrl, timeout: 60000 })
+        }
+        throw error
       } finally {
         clearTimeout(timeoutId)
       }
 
     } catch (error) {
-      logger.error('Error in ReadarrService.searchBooks:', { error })
+      logger.error('Error in ReadarrService.searchBooks', { error: error instanceof Error ? error.message : error })
       throw error
     }
   }
@@ -193,6 +201,7 @@ export class ReadarrService {
       const scanUrl = `${url}/api/v1/book`
 
       logger.info(`Scanning local Readarr library`)
+      logger.trace('Outgoing Readarr API Request', { url: scanUrl, method: 'GET' })
 
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000)
@@ -203,17 +212,24 @@ export class ReadarrService {
           signal: controller.signal
         })
 
+        logger.trace('Readarr API Response', { url: scanUrl, status: response.status })
+
         if (!response.ok) {
           throw new Error(`Readarr book fetch failed with status: ${response.status}`)
         }
 
         const data = await response.json()
         return Array.isArray(data) ? data : []
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          logger.error('Readarr API Request Timed Out', { url: scanUrl, timeout: 60000 })
+        }
+        throw error
       } finally {
         clearTimeout(timeoutId)
       }
     } catch (error) {
-      logger.error('Error in ReadarrService.scanLocalLibrary:', { error })
+      logger.error('Error in ReadarrService.scanLocalLibrary', { error: error instanceof Error ? error.message : error })
       throw error
     }
   }
@@ -235,6 +251,7 @@ export class ReadarrService {
         // For Local Books (id > 0): Fetch full metadata and editions
         if (!isExternal) {
           const bookUrl = `${url}/api/v1/book/${book.id}`
+          logger.trace('Outgoing Readarr API Request', { url: bookUrl, method: 'GET' })
           const bookController = new AbortController()
           const bookTimeoutId = setTimeout(() => bookController.abort(), 60000)
 
@@ -244,9 +261,15 @@ export class ReadarrService {
               signal: bookController.signal
             })
 
+            logger.trace('Readarr API Response', { url: bookUrl, status: bookResponse.status })
             if (bookResponse.ok) {
               fullBook = await bookResponse.json()
             }
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              logger.error('Readarr API Request Timed Out', { url: bookUrl, timeout: 60000 })
+            }
+            throw error
           } finally {
             clearTimeout(bookTimeoutId)
           }
@@ -254,6 +277,7 @@ export class ReadarrService {
           editionUrl = `${url}/api/v1/edition?bookId=${book.id}`
 
           if (editionUrl) {
+            logger.trace('Outgoing Readarr API Request', { url: editionUrl, method: 'GET' })
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), 60000)
 
@@ -263,9 +287,15 @@ export class ReadarrService {
                 signal: controller.signal
               })
 
+              logger.trace('Readarr API Response', { url: editionUrl, status: response.status })
               if (response.ok) {
                 editions = await response.json()
               }
+            } catch (error) {
+              if (error instanceof Error && error.name === 'AbortError') {
+                logger.error('Readarr API Request Timed Out', { url: editionUrl, timeout: 60000 })
+              }
+              throw error
             } finally {
               clearTimeout(timeoutId)
             }
@@ -278,7 +308,7 @@ export class ReadarrService {
             }
         }
       } catch (e) {
-        logger.error(`Error fetching editions for book ${book.title}:`, e)
+        logger.error(`Error fetching editions for book`, { error: e instanceof Error ? e.message : e, title: book.title })
         // We don't want to throw here, we want to gracefully degrade
       }
 
@@ -328,7 +358,7 @@ export class ReadarrService {
       }
 
     } catch (error) {
-      logger.error('Error in ReadarrService.getBookDetails:', { error })
+      logger.error('Error in ReadarrService.getBookDetails:', { error: error instanceof Error ? error.message : error })
 
       // Fallback if everything fails
       const cleanTitle = book.title?.replace(/\s+by\s+.+$/i, '').trim() || 'Unknown Title'

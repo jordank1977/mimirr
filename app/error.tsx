@@ -27,7 +27,7 @@ export default function Error({
           name: error.name
         }
       }),
-    }).catch(console.error) // Fail silently if logging fails
+    }).catch(() => {}) // Fail silently if logging fails
   }, [error])
 
   return (

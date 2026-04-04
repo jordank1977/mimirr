@@ -79,7 +79,7 @@ export class RequestService {
 
       return result[0]
     } catch (error) {
-      logger.error('Failed to create request', { error, data })
+      logger.error('Failed to create request', { error: error instanceof Error ? error.message : error, data })
       throw error
     }
   }
@@ -133,7 +133,7 @@ export class RequestService {
 
       return enrichedRequests
     } catch (error) {
-      logger.error('Failed to get user requests', { error, userId })
+      logger.error('Failed to get user requests', { error: error instanceof Error ? error.message : error, userId })
       throw new Error('Failed to retrieve requests')
     }
   }
@@ -171,7 +171,7 @@ export class RequestService {
 
       return enrichedRequests
     } catch (error) {
-      logger.error('Failed to get all requests', { error })
+      logger.error('Failed to get all requests', { error: error instanceof Error ? error.message : error })
       throw new Error('Failed to retrieve requests')
     }
   }
@@ -213,7 +213,7 @@ export class RequestService {
 
       return result[0]
     } catch (error) {
-      logger.error('Failed to update request', { error, requestId, data })
+      logger.error('Failed to update request', { error: error instanceof Error ? error.message : error, requestId, data })
       throw error
     }
   }
@@ -227,7 +227,7 @@ export class RequestService {
 
       logger.info('Request deleted', { requestId })
     } catch (error) {
-      logger.error('Failed to delete request', { error, requestId })
+      logger.error('Failed to delete request', { error: error instanceof Error ? error.message : error, requestId })
       throw new Error('Failed to delete request')
     }
   }
@@ -256,7 +256,7 @@ export class RequestService {
 
       return stats
     } catch (error) {
-      logger.error('Failed to get request stats', { error, userId })
+      logger.error('Failed to get request stats', { error: error instanceof Error ? error.message : error, userId })
       throw new Error('Failed to retrieve request statistics')
     }
   }
@@ -319,7 +319,7 @@ export class RequestService {
 
       return result[0]
     } catch (error) {
-      logger.error('Failed to create Only This Book request', { error, data })
+      logger.error('Failed to create Only This Book request', { error: error instanceof Error ? error.message : error, data })
       throw error
     }
   }
@@ -412,7 +412,7 @@ export class RequestService {
         synced: mappedData.length,
       })
     } catch (error) {
-      logger.error('Failed to sync Readarr library', { error })
+      logger.error('Failed to sync Readarr library', { error: error instanceof Error ? error.message : error })
       // Don't throw - this is a background sync that shouldn't fail the main operation
     }
   }
@@ -434,7 +434,7 @@ export class RequestService {
     }>
   }> {
     try {
-      logger.debug('Starting sniper polling of active requests')
+      logger.trace('Target Polling execution started')
 
       // Get Bookshelf config from database
       const urlSetting = await db
@@ -515,7 +515,7 @@ export class RequestService {
 
             logger.info(`Self-healing stranded request ${request.id} from pending to error state.`)
           } catch (error: any) {
-            logger.error('Failed to self-heal stranded request', { error, requestId: request.id })
+            logger.error('Failed to self-heal stranded request', { error: error instanceof Error ? error.message : error, requestId: request.id })
           }
           continue;
         }
@@ -694,6 +694,7 @@ export class RequestService {
           }
 
           if (statusResult.status === 'available' && request.status !== 'available') {
+            logger.debug('State Machine Transition: Request Available', { requestId: request.id, previousState: request.status, newState: 'available' })
             updateData.status = 'available'
             updateData.completedAt = new Date()
             updateData.notes = null // Clear any SEARCHING or ERROR notes when book becomes available
@@ -733,7 +734,7 @@ export class RequestService {
                 if (profile) qualityProfileName = profile.name
               }
             } catch (error) {
-              logger.error('Failed to fetch quality profile', { error })
+              logger.error('Failed to fetch quality profile', { error: error instanceof Error ? error.message : error })
             }
 
             // Send notification to user
@@ -753,6 +754,7 @@ export class RequestService {
           } else if (statusResult.status === 'downloading') {
             // Advance unreleased (approved) books to processing
             if (request.status === 'approved') {
+              logger.debug('State Machine Transition: Request Processing', { requestId: request.id, previousState: request.status, newState: 'processing' })
               updateData.status = 'processing'
               updated++
 
@@ -778,6 +780,7 @@ export class RequestService {
 
               if (currentDate < bufferedReleaseDate) {
                 if (request.status !== 'approved') {
+                  logger.debug('State Machine Transition: Request Approved (Unreleased)', { requestId: request.id, previousState: request.status, newState: 'approved' })
                   updateData.status = 'approved' // Mimirr's Unreleased state
                   updated++
                   details.push({
@@ -793,6 +796,7 @@ export class RequestService {
                 }
               } else {
                 if (request.status !== 'processing') {
+                  logger.debug('State Machine Transition: Request Processing (Past Release Date)', { requestId: request.id, previousState: request.status, newState: 'processing' })
                   updateData.status = 'processing'
                   updated++
                   details.push({
@@ -825,6 +829,7 @@ export class RequestService {
             // Check if there is an explicit error message needing manual intervention
             if (statusResult.error && statusResult.error.includes('MIMIRR_MANUAL_INTERVENTION_REQUIRED')) {
                if (request.status !== 'error') {
+                 logger.debug('State Machine Transition: Request Error (Manual Intervention)', { requestId: request.id, previousState: request.status, newState: 'error', reason: statusResult.error })
                  updateData.status = 'error'
                  updateData.notes = statusResult.error
                  updated++
@@ -855,6 +860,7 @@ export class RequestService {
             } else if (statusResult.error && statusResult.error.includes('Book not found in Bookshelf')) {
               // Terminal error: Book is completely missing from Readarr after all fallback checks
               if (request.status !== 'error') {
+                logger.debug('State Machine Transition: Request Error (Terminal Missing)', { requestId: request.id, previousState: request.status, newState: 'error', reason: 'Book missing from Readarr' })
                 updateData.status = 'error'
                 updateData.notes = 'MIMIRR_SYNC_FAILED: Book missing from Readarr'
                 updated++
@@ -931,10 +937,11 @@ export class RequestService {
         updated,
         errors,
       })
+      logger.trace('Target Polling execution details', { details })
 
       return { checked, updated, errors, details }
     } catch (error) {
-      logger.error('Failed to execute sniper polling', { error })
+      logger.error('Failed to execute sniper polling', { error: error instanceof Error ? error.message : error })
       throw error
     }
   }

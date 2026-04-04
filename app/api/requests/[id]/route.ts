@@ -44,7 +44,7 @@ async function getHandler(
       return handleAuthError(error)
     }
 
-    logger.error('Get request API error', { error })
+    logger.error('Get request API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to retrieve request' },
       { status: 500 }
@@ -85,7 +85,7 @@ async function patchHandler(
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    logger.error('Unexpected update request error', { error })
+    logger.error('Unexpected update request error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to update request' },
       { status: 500 }
@@ -167,7 +167,7 @@ async function deleteHandler(
           if (profile) qualityProfileName = profile.name
         }
       } catch (error) {
-        logger.error('Failed to fetch quality profile', { error })
+        logger.error('Failed to fetch quality profile', { error: error instanceof Error ? error.message : error })
       }
 
       await NotificationService.sendNotification(
@@ -191,7 +191,7 @@ async function deleteHandler(
       return handleAuthError(error)
     }
 
-    logger.error('Delete request API error', { error })
+    logger.error('Delete request API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to delete request' },
       { status: 500 }

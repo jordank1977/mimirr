@@ -47,7 +47,7 @@ export async function fetchLibraryWithCache(
 
       return data;
     } catch (error) {
-      logger.error('Failed to fetch books from Bookshelf library', { error });
+      logger.error('Failed to fetch books from Bookshelf library', { error: error instanceof Error ? error.message : error });
       return [];
     } finally {
       libraryFetchPromise = null;

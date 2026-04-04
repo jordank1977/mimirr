@@ -67,7 +67,7 @@ async function postHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Scrub Tool execution error', { error })
+    logger.error('Scrub Tool execution error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'An unexpected error occurred during the scrub process' },
       { status: 500 }

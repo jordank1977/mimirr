@@ -33,7 +33,7 @@ async function postHandler(
       return handleAuthError(error)
     }
 
-    logger.error('Failed to mark notification as read', { error })
+    logger.error('Failed to mark notification as read', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to mark notification as read' },
       { status: 500 }

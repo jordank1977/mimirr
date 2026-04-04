@@ -62,7 +62,7 @@ async function handler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Book search API error', { error })
+    logger.error('Book search API error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to search books' },
       { status: 500 }

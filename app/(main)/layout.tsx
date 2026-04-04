@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
+import { logToClient } from '@/lib/utils/client-logger'
 
 interface User {
   id: number
@@ -58,14 +59,14 @@ export default function MainLayout({
         if (response.ok) {
           const data = await response.json()
           if (data.updated > 0) {
-            console.info(`[Mimirr] Polled requests: ${data.checked} checked, ${data.updated} updated.`)
+            logToClient('info', `[Mimirr] Polled requests: ${data.checked} checked, ${data.updated} updated.`)
             // We could potentially trigger a global state refresh here if needed,
             // but the status is mostly displayed on specific pages that fetch their own data.
           }
         }
       } catch (error) {
         // Silently fail polling to not disturb the user experience
-        console.error('[Mimirr] Error polling requests:', error)
+        logToClient('error', '[Mimirr] Error polling requests', { error: error instanceof Error ? error.message : error })
       }
     }
 

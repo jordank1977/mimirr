@@ -54,7 +54,7 @@ export class BookLoreService {
         libraryId: libraryIdSetting[0].value,
       }
     } catch (error) {
-      logger.error('Failed to get BookLore configuration', { error })
+      logger.error('Failed to get BookLore configuration', { error: error instanceof Error ? error.message : error })
       return null
     }
   }
@@ -138,7 +138,7 @@ export class BookLoreService {
         throw error
       }
     } catch (error) {
-      logger.error('BookLore authentication error', { error })
+      logger.error('BookLore authentication error', { error: error instanceof Error ? error.message : error })
       return null
     }
   }
@@ -208,7 +208,7 @@ export class BookLoreService {
         throw error
       }
     } catch (error) {
-      logger.error('BookLore connection test failed', { error })
+      logger.error('BookLore connection test failed', { error: error instanceof Error ? error.message : error })
       return false
     }
   }
@@ -287,7 +287,7 @@ export class BookLoreService {
         throw error
       }
     } catch (error) {
-      logger.error('Failed to refresh BookLore library', { error, libraryId: config.libraryId })
+      logger.error('Failed to refresh BookLore library', { error: error instanceof Error ? error.message : error, libraryId: config.libraryId })
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -363,7 +363,7 @@ export class BookLoreService {
         throw error
       }
     } catch (error) {
-      logger.error('Failed to get BookLore library status', { error, libraryId: config.libraryId })
+      logger.error('Failed to get BookLore library status', { error: error instanceof Error ? error.message : error, libraryId: config.libraryId })
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -438,7 +438,7 @@ export class BookLoreService {
         throw error
       }
     } catch (error) {
-      logger.error('Failed to search books in BookLore', { error, query })
+      logger.error('Failed to search books in BookLore', { error: error instanceof Error ? error.message : error, query })
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -513,7 +513,7 @@ export class BookLoreService {
         throw error
       }
     } catch (error) {
-      logger.error('Failed to get book details from BookLore', { error, bookId })
+      logger.error('Failed to get book details from BookLore', { error: error instanceof Error ? error.message : error, bookId })
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',

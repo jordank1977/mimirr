@@ -37,7 +37,7 @@ async function getHandler(request: NextRequest) {
       logger.info('Forcing recommendation refresh due to old cache (pre-rating-fix)', { userId: payload.userId })
       // Trigger background update but continue with current results for immediate response
       RecommendationService.updateUserPreferences(payload.userId).catch(err => 
-        logger.error('Failed to background update preferences', { userId: payload.userId, err })
+        logger.error('Failed to background update preferences', { userId: payload.userId, error: err instanceof Error ? err.message : err })
       )
     }
 
@@ -63,7 +63,7 @@ async function getHandler(request: NextRequest) {
       try {
         authorsForYou = JSON.parse(prefs.recommendedAuthorBooks)
       } catch (error) {
-        logger.error('Failed to parse recommended authors', { error, userId: payload.userId })
+        logger.error('Failed to parse recommended authors', { error: error instanceof Error ? error.message : error, userId: payload.userId })
         authorsForYou = []
       }
     }
@@ -91,7 +91,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Failed to get personalized recommendations', { error })
+    logger.error('Failed to get personalized recommendations', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Failed to get personalized recommendations' },
       { status: 500 }

@@ -169,7 +169,7 @@ export class SyncService {
       await ReadarrJobOrchestrator.startJob(jobId, bookshelfConfig)
 
     } catch (error) {
-      logger.error('Error during scheduled background sync', { error })
+      logger.error('Error during scheduled background sync', { error: error instanceof Error ? error.message : error })
     }
   }
 
@@ -563,7 +563,7 @@ export class SyncService {
       return { added: addedCount, orphaned: orphanedCount, purged: purgedCount };
 
     } catch (error) {
-      logger.error('Failed to execute Active State Reconciliation', { error })
+      logger.error('Failed to execute Active State Reconciliation', { error: error instanceof Error ? error.message : error })
       throw error; // Rethrow so the API endpoint catches it
     }
   }

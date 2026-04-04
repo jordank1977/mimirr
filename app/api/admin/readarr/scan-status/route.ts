@@ -4,10 +4,11 @@ import { desc } from 'drizzle-orm'
 import { logger } from '@/lib/utils/logger'
 import { timingSafeCompare } from '@/lib/utils/crypto'
 import { requireAdmin, AuthError } from '@/lib/middleware/auth.middleware'
+import { withLogging } from '@/lib/middleware/logging.middleware'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export const GET = withLogging(async function GET(request: NextRequest) {
   try {
     // 1. Dual-Authorization Check
     let isAuthorized = false
@@ -53,10 +54,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ job: latestJobs[0] })
   } catch (error) {
-    logger.error('Error fetching readarr scan status', { error })
+    logger.error('Error fetching readarr scan status', { error: error instanceof Error ? error.message : error })
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
     )
   }
-}
+});

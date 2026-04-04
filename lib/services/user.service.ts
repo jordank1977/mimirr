@@ -41,7 +41,7 @@ export class UserService {
 
       return allUsers
     } catch (error) {
-      logger.error('Failed to get all users', { error })
+      logger.error('Failed to get all users', { error: error instanceof Error ? error.message : error })
       throw new Error('Failed to retrieve users')
     }
   }
@@ -69,7 +69,7 @@ export class UserService {
 
       return result[0] || null
     } catch (error) {
-      logger.error('Failed to get user by ID', { error, userId })
+      logger.error('Failed to get user by ID', { error: error instanceof Error ? error.message : error, userId })
       return null
     }
   }
@@ -127,7 +127,7 @@ export class UserService {
       const { passwordHash: _, ...userWithoutPassword } = result[0]
       return userWithoutPassword
     } catch (error) {
-      logger.error('Failed to create user', { error, username: data.username })
+      logger.error('Failed to create user', { error: error instanceof Error ? error.message : error, username: data.username })
       throw error
     }
   }
@@ -176,7 +176,7 @@ export class UserService {
       const { passwordHash: _, ...userWithoutPassword } = result[0]
       return userWithoutPassword
     } catch (error) {
-      logger.error('Failed to update user', { error, userId })
+      logger.error('Failed to update user', { error: error instanceof Error ? error.message : error, userId })
       throw error
     }
   }
@@ -222,7 +222,7 @@ export class UserService {
 
       logger.info('User deleted', { userId, username: user.username })
     } catch (error) {
-      logger.error('Failed to delete user', { error, userId })
+      logger.error('Failed to delete user', { error: error instanceof Error ? error.message : error, userId })
       throw error
     }
   }
@@ -244,7 +244,7 @@ export class UserService {
         regularUsers: allUsers.filter((u) => u.role === 'user').length,
       }
     } catch (error) {
-      logger.error('Failed to get user stats', { error })
+      logger.error('Failed to get user stats', { error: error instanceof Error ? error.message : error })
       throw new Error('Failed to retrieve user statistics')
     }
   }

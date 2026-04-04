@@ -111,7 +111,7 @@ async function getHandler(request: NextRequest) {
       return handleAuthError(error)
     }
 
-    logger.error('Failed to serve log file', { error })
+    logger.error('Failed to serve log file', { error: error instanceof Error ? error.message : error })
     return new NextResponse('Error retrieving log file.', {
       status: 500,
       headers: { 'Content-Type': 'text/plain' },
