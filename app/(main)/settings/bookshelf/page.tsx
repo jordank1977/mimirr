@@ -197,6 +197,9 @@ export default function BookshelfSettingsPage() {
           const data = await response.json()
           if (data.job) {
             setSyncJob(data.job)
+            if (data.job.status !== 'scanning') {
+              setScanMessage(null)
+            }
           }
         }
       } catch (e) {
@@ -423,6 +426,11 @@ export default function BookshelfSettingsPage() {
 
       // Update initial form data to reflect saved state
       setInitialFormData(formData)
+
+      // Optimistically lock the Scan Library button since saving kicks off a background sync
+      setScanMessage(null)
+      setStartingScan(false)
+      setSyncJob({ status: 'scanning', currentLogMessage: 'Initializing background sync...' })
 
       // Fetch quality profiles after successful save
       await fetchQualityProfiles()

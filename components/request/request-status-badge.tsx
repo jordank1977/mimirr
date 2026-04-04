@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils/cn'
 
 interface RequestStatusBadgeProps {
-  status: 'pending' | 'approved' | 'declined' | 'available' | 'processing' | 'error' | 'Available' | 'Processing' | 'Unreleased'
+  status: string
 }
 
 const statusConfig: Record<string, { label: string, className: string }> = {
@@ -33,9 +33,21 @@ const statusConfig: Record<string, { label: string, className: string }> = {
     label: 'Processing',
     className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
   },
+  unreleased: {
+    label: 'Unreleased',
+    className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+  },
   Unreleased: {
     label: 'Unreleased',
     className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+  },
+  unowned: {
+    label: 'Unowned',
+    className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+  },
+  requested: {
+    label: 'Requested',
+    className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   },
   error: {
     label: 'Error',
@@ -44,7 +56,10 @@ const statusConfig: Record<string, { label: string, className: string }> = {
 }
 
 export function RequestStatusBadge({ status }: RequestStatusBadgeProps) {
-  const config = statusConfig[status]
+  const config = statusConfig[status] || {
+    label: status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown',
+    className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+  }
 
   return (
     <span
