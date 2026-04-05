@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { bookloreSettingsSchema } from '@/lib/utils/validation'
 import { BookLoreService } from '@/lib/services/booklore.service'
 import { logger } from '@/lib/utils/logger'
+import { encrypt, decrypt } from '@/lib/crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,14 +41,15 @@ async function getHandler(request: NextRequest) {
       .where(eq(settings.key, 'booklore_library_id'))
       .limit(1)
 
-    // Mask password for security - return "********" if password exists
-    const passwordValue = passwordSetting[0]?.value || ''
-    const maskedPassword = passwordValue ? '********' : ''
+    // Ensure the password decrypts safely. If it's a legacy plaintext password, decrypt will swallow the error and return ''
+    const rawPassword = passwordSetting[0]?.value || ''
+    const decryptedPassword = rawPassword ? decrypt(rawPassword) : ''
+    const hasPassword = !!decryptedPassword
 
     return NextResponse.json({
       url: urlSetting[0]?.value || '',
       username: usernameSetting[0]?.value || '',
-      password: maskedPassword,
+      hasPassword,
       libraryId: libraryIdSetting[0]?.value || '',
       configured: urlSetting.length > 0 && usernameSetting.length > 0 && passwordSetting.length > 0 && libraryIdSetting.length > 0,
     })
@@ -75,11 +77,32 @@ async function postHandler(request: NextRequest) {
     // Validate input
     const validatedData = bookloreSettingsSchema.parse(body)
 
+    let effectivePassword = validatedData.password
+
+    // If password is omitted, retrieve it from the database and decrypt it
+    if (!effectivePassword) {
+      const passwordSetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'booklore_password'))
+        .limit(1)
+
+      const rawPassword = passwordSetting[0]?.value || ''
+      effectivePassword = rawPassword ? decrypt(rawPassword) : ''
+
+      if (!effectivePassword) {
+        return NextResponse.json(
+          { error: 'Password is required but no valid existing password was found.' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Test connection
     const isConnected = await BookLoreService.testConnection({
       url: validatedData.url,
       username: validatedData.username,
-      password: validatedData.password,
+      password: effectivePassword,
       libraryId: validatedData.libraryId,
     })
 
@@ -130,13 +153,15 @@ async function postHandler(request: NextRequest) {
         },
       })
 
-    // Upsert password setting - skip if password is "********" (masked placeholder)
-    if (validatedData.password !== '********') {
+    // Upsert password setting - only if a new password was provided
+    if (validatedData.password) {
+      const encryptedPassword = encrypt(validatedData.password)
+
       await db
         .insert(settings)
         .values({
           key: 'booklore_password',
-          value: validatedData.password,
+          value: encryptedPassword,
           category: 'booklore',
           updatedAt: now,
           updatedBy: user.userId,
@@ -144,7 +169,7 @@ async function postHandler(request: NextRequest) {
         .onConflictDoUpdate({
           target: settings.key,
           set: {
-            value: validatedData.password,
+            value: encryptedPassword,
             updatedAt: now,
             updatedBy: user.userId,
           },

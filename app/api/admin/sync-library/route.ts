@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { SyncService } from '@/lib/services/sync.service';
 import { logger } from '@/lib/utils/logger';
 import { withLogging } from '@/lib/middleware/logging.middleware';
+import { requireAdmin, AuthError } from '@/lib/middleware/auth.middleware';
 
 export const dynamic = 'force-dynamic';
 // Increase Vercel function timeout if deployed on Vercel, though this is primarily for self-hosted Docker
@@ -12,13 +13,15 @@ export const maxDuration = 300;
 
 export const POST = withLogging(async function POST(request: NextRequest) {
   try {
-    // 1. Authorization (OPSEC)
-    const adminKey = request.headers.get('x-mimirr-admin-key');
-    const secretKey = process.env.SYNC_AUDIT_SECRET;
-
-    if (!secretKey || adminKey !== secretKey) {
-      logger.warn('Unauthorized access attempt to sync-library route');
-      return new NextResponse('Unauthorized', { status: 401 });
+    // 1. Authorization Check
+    try {
+      await requireAdmin(request)
+    } catch (e) {
+      if (e instanceof AuthError) {
+        logger.warn('Unauthorized access attempt to sync-library route')
+        return new NextResponse('Unauthorized', { status: 401 })
+      }
+      throw e
     }
 
     // Fetch configuration for BookshelfService

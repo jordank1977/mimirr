@@ -11,33 +11,15 @@ export const dynamic = 'force-dynamic'
 
 export const POST = withLogging(async function POST(request: NextRequest) {
   try {
-    // 1. Dual-Authorization Check
-    let isAuthorized = false
-
-    // Attempt 1: NextAuth Session (UI User)
+    // 1. Authorization Check
     try {
       await requireAdmin(request)
-      isAuthorized = true
     } catch (e) {
       if (e instanceof AuthError) {
-        // UI User failed, check fallback
-      } else {
-        throw e // Unexpected error
+        logger.warn('Unauthorized access attempt to readarr start-scan route')
+        return new NextResponse('Unauthorized', { status: 401 })
       }
-    }
-
-    // Attempt 2: Static Secret Key (Headless/Cron)
-    if (!isAuthorized) {
-      const adminKey = request.headers.get('x-mimirr-admin-key')
-      const secretKey = process.env.SYNC_AUDIT_SECRET
-      if (secretKey && adminKey && timingSafeCompare(adminKey, secretKey)) {
-        isAuthorized = true
-      }
-    }
-
-    if (!isAuthorized) {
-      logger.warn('Unauthorized access attempt to readarr start-scan route')
-      return new NextResponse('Unauthorized', { status: 401 })
+      throw e
     }
 
     // 2. Concurrency Lock

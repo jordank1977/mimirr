@@ -54,7 +54,7 @@ export const bookshelfSettingsSchema = z.object({
 export const bookloreSettingsSchema = z.object({
   url: z.string().url('Invalid URL'),
   username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
+  password: z.string().optional(),
   libraryId: z.string().min(1, 'Library ID is required'),
 })
 

@@ -74,10 +74,11 @@ export default function BookLoreSettingsPage() {
       const data = await response.json()
 
       if (response.ok) {
+        const placeholderPassword = data.hasPassword ? '••••••••' : ''
         const settings: FormData = {
           url: data.url || '',
           username: data.username || '',
-          password: data.password || '',
+          password: placeholderPassword,
           libraryId: data.libraryId || '',
         }
         setFormData(settings)
@@ -98,10 +99,17 @@ export default function BookLoreSettingsPage() {
     })
 
     try {
+      // Omit password if it hasn't been changed from the placeholder
+      const payload = { ...formData }
+      if (payload.password === '••••••••') {
+        // @ts-ignore: Intentionally removing password for backend fallback
+        delete payload.password
+      }
+
       const response = await fetch('/api/settings/booklore/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()
@@ -130,10 +138,17 @@ export default function BookLoreSettingsPage() {
     setMessage(null)
 
     try {
+      // Omit password if it hasn't been changed from the placeholder
+      const payload = { ...formData }
+      if (payload.password === '••••••••') {
+        // @ts-ignore: Intentionally removing password for backend fallback
+        delete payload.password
+      }
+
       const response = await fetch('/api/settings/booklore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()

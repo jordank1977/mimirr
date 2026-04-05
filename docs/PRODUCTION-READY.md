@@ -78,8 +78,6 @@ DATABASE_URL=file:/app/config/db.sqlite
 PORT=8788
 ```
 
-**Note:** `SYNC_AUDIT_SECRET` can be optionally set to trigger headless background scans.
-
 ## Post-Deployment
 
 ### 1. Complete Setup Wizard
@@ -249,7 +247,6 @@ Post-Deployment:
 - [ ] Verified health endpoint returns 200
 - [ ] Logged in with admin credentials
 - [ ] Changed admin password in Settings
-- [ ] Optionally set `SYNC_AUDIT_SECRET` for cron jobs/headless syncs
 - [ ] Configured Bookshelf integration
 - [ ] Tested book search and request
 - [ ] Verified database persistence (restart test)

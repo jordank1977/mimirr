@@ -4,6 +4,9 @@ import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { bookloreSettingsSchema } from '@/lib/utils/validation'
 import { BookLoreService } from '@/lib/services/booklore.service'
 import { logger } from '@/lib/utils/logger'
+import { decrypt } from '@/lib/crypto'
+import { db, settings } from '@/lib/db'
+import { eq } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +21,27 @@ async function postHandler(request: NextRequest) {
     // Validate input
     const validatedData = bookloreSettingsSchema.parse(body)
 
+    let effectivePassword = validatedData.password
+
+    // If password is omitted, retrieve it from the database and decrypt it
+    if (!effectivePassword) {
+      const passwordSetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'booklore_password'))
+        .limit(1)
+
+      const rawPassword = passwordSetting[0]?.value || ''
+      effectivePassword = rawPassword ? decrypt(rawPassword) : ''
+
+      if (!effectivePassword) {
+        return NextResponse.json(
+          { error: 'Password is required but no valid existing password was found.' },
+          { status: 400 }
+        )
+      }
+    }
+
     logger.info('Testing BookLore connection', {
       url: validatedData.url,
       username: validatedData.username,
@@ -28,7 +52,7 @@ async function postHandler(request: NextRequest) {
     const isConnected = await BookLoreService.testConnection({
       url: validatedData.url,
       username: validatedData.username,
-      password: validatedData.password,
+      password: effectivePassword,
       libraryId: validatedData.libraryId,
     })
 
@@ -49,7 +73,7 @@ async function postHandler(request: NextRequest) {
       const statusResult = await BookLoreService.getLibraryStatus({
         url: validatedData.url,
         username: validatedData.username,
-        password: validatedData.password,
+        password: effectivePassword,
         libraryId: validatedData.libraryId,
       })
 

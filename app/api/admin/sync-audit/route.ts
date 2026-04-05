@@ -5,17 +5,20 @@ import { inArray, isNotNull, eq } from 'drizzle-orm';
 import { BookshelfService } from '@/lib/services/bookshelf.service';
 import { logger } from '@/lib/utils/logger';
 import { withLogging } from '@/lib/middleware/logging.middleware';
+import { requireAdmin, AuthError } from '@/lib/middleware/auth.middleware';
 import { NextRequest } from 'next/server';
 
 export const GET = withLogging(async function GET(request: NextRequest) {
   try {
-    // 1. Authorization (OPSEC)
-    const adminKey = request.headers.get('x-mimirr-admin-key');
-    const secretKey = process.env.SYNC_AUDIT_SECRET;
-
-    if (!secretKey || adminKey !== secretKey) {
-      logger.warn('Unauthorized access attempt to sync-audit route');
-      return new NextResponse('Unauthorized', { status: 401 });
+    // 1. Authorization Check
+    try {
+      await requireAdmin(request)
+    } catch (e) {
+      if (e instanceof AuthError) {
+        logger.warn('Unauthorized access attempt to sync-audit route')
+        return new NextResponse('Unauthorized', { status: 401 })
+      }
+      throw e
     }
 
     // Fetch configuration for BookshelfService

@@ -99,11 +99,6 @@ function SortableProfile({ profile, onToggle }: SortableProfileProps) {
   )
 }
 
-// Helper to get secret key for API requests
-function getAdminKey() {
-  return typeof window !== 'undefined' ? localStorage.getItem('mimirr_admin_key') || '' : ''
-}
-
 export default function BookshelfSettingsPage() {
   const [formData, setFormData] = useState({
     url: '',
@@ -130,7 +125,6 @@ export default function BookshelfSettingsPage() {
   const [showApiKeyHelp, setShowApiKeyHelp] = useState(false)
 
   // Sync Job State
-  const [adminKey, setAdminKey] = useState('')
   const [syncJob, setSyncJob] = useState<any>(null)
   const [startingScan, setStartingScan] = useState(false)
   const [scanMessage, setScanMessage] = useState<{
@@ -139,15 +133,10 @@ export default function BookshelfSettingsPage() {
   } | null>(null)
 
   useEffect(() => {
-    setAdminKey(getAdminKey())
-  }, [])
-
-  const handleAdminKeyChange = (val: string) => {
-    setAdminKey(val)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('mimirr_admin_key', val)
+      localStorage.removeItem('mimirr_admin_key')
     }
-  }
+  }, [])
 
   const hasUnsavedChanges = formData.url !== initialFormData.url || formData.apiKey !== initialFormData.apiKey
   const isConfigured = Boolean(initialFormData.url && initialFormData.apiKey)
@@ -186,13 +175,9 @@ export default function BookshelfSettingsPage() {
 
   // Polling for sync status
   useEffect(() => {
-    if (!adminKey) return;
-
     const fetchStatus = async () => {
       try {
-        const response = await fetch('/api/admin/readarr/scan-status', {
-          headers: { 'x-mimirr-admin-key': adminKey }
-        })
+        const response = await fetch('/api/admin/readarr/scan-status')
         if (response.ok) {
           const data = await response.json()
           if (data.job) {
@@ -219,21 +204,15 @@ export default function BookshelfSettingsPage() {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [adminKey, syncJob?.status])
+  }, [syncJob?.status])
 
 
   async function handleStartScan() {
-    if (!adminKey) {
-      setScanMessage({ type: 'error', text: 'Please enter your Mimirr Admin Key to start a scan.' })
-      return
-    }
-
     setStartingScan(true)
     setScanMessage(null)
     try {
       const response = await fetch('/api/admin/readarr/start-scan', {
-        method: 'POST',
-        headers: { 'x-mimirr-admin-key': adminKey }
+        method: 'POST'
       })
 
       const data = await response.json()
@@ -644,18 +623,9 @@ export default function BookshelfSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
-            <Input
-              label="Mimirr Admin Key"
-              type="password"
-              placeholder="Your SYNC_AUDIT_SECRET"
-              value={adminKey}
-              onChange={(e) => handleAdminKeyChange(e.target.value)}
-              required
-            />
-
             <Button
               onClick={handleStartScan}
-              disabled={startingScan || !adminKey || !isConfigured || hasUnsavedChanges || testStatus?.type === 'error' || (syncJob && syncJob.status === 'scanning')}
+              disabled={startingScan || !isConfigured || hasUnsavedChanges || testStatus?.type === 'error' || (syncJob && syncJob.status === 'scanning')}
             >
               {startingScan
                 ? 'Starting...'

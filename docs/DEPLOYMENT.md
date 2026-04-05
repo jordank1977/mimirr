@@ -29,11 +29,6 @@ nano .env
 
 **All configuration is optional!** Mimirr uses sensible defaults.
 
-If you plan to run headless background library syncs (e.g., via a cron job or external script), configure a secure key:
-```env
-SYNC_AUDIT_SECRET=your-sync-audit-secret # Generate with: openssl rand -base64 32
-```
-
 ### 3. Deploy
 
 ```bash

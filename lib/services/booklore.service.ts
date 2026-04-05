@@ -1,6 +1,7 @@
 import { logger } from '@/lib/utils/logger'
 import { db, settings } from '@/lib/db'
 import { eq } from 'drizzle-orm'
+import { decrypt } from '@/lib/crypto'
 
 export interface BookLoreConfig {
   url: string
@@ -47,10 +48,14 @@ export class BookLoreService {
         return null
       }
 
+      // Decrypt the stored password, safely handling legacy plaintext passwords by returning ''
+      const rawPassword = passwordSetting[0].value
+      const decryptedPassword = rawPassword ? decrypt(rawPassword) : ''
+
       return {
         url: urlSetting[0].value,
         username: usernameSetting[0].value,
-        password: passwordSetting[0].value,
+        password: decryptedPassword,
         libraryId: libraryIdSetting[0].value,
       }
     } catch (error) {
