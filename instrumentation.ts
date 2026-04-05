@@ -10,30 +10,12 @@ export async function register() {
       return
     }
 
-    // Auto-migrate database on startup
-    try {
-      logger.info('Running database auto-migrations...')
-      const path = await import('path')
-      const fs = await import('fs')
-
-      // Ensure the config directory exists before trying to open DB
-      const configDir = path.join(process.cwd(), 'config')
-      if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true })
-      }
-
-      const { db } = await import('./lib/db')
-      const { migrate } = await import('drizzle-orm/libsql/migrator')
-
-      const migrationsFolder = path.join(process.cwd(), 'lib', 'db', 'migrations')
-
-      // Use Drizzle's official migrate function
-      await migrate(db, { migrationsFolder })
-      logger.info('Database auto-migration completed successfully.')
-    } catch (error) {
-      logger.error('Failed to run database auto-migrations', { error })
-      // We do not exit the process here to allow the app to start even if migrations fail
-      // but log it prominently.
+    // Ensure the config directory exists before trying to open DB
+    const path = await import('path')
+    const fs = await import('fs')
+    const configDir = path.join(process.cwd(), 'config')
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true })
     }
 
     // Initialize polling interval (ensure singleton behavior in dev)
