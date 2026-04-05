@@ -123,9 +123,15 @@ export default function BookLoreSettingsPage() {
         message: `Connected successfully! ${data.message || 'Authentication successful.'}`,
       })
     } catch (error) {
+      let errorMessage = error instanceof Error ? error.message : 'Connection test failed'
+
+      if (errorMessage.includes('Authentication failed') || errorMessage.includes('401') || errorMessage.includes('403')) {
+        errorMessage = 'Authentication failed. Please check your username, password, and URL.'
+      }
+
       setTestStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Connection test failed',
+        message: errorMessage,
       })
     } finally {
       setTesting(false)

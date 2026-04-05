@@ -369,7 +369,12 @@ export default function BookshelfSettingsPage() {
         });
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Connection test failed'
+      let errorMessage = error instanceof Error ? error.message : 'Connection test failed'
+
+      if (errorMessage.includes('Authentication failed') || errorMessage.includes('401') || errorMessage.includes('403')) {
+        errorMessage = 'Authentication failed. Please check your API key and URL.'
+      }
+
       setTestStatus({
         type: 'error',
         message: errorMessage,

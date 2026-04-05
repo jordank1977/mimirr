@@ -48,15 +48,27 @@ export class BookLoreService {
         return null
       }
 
-      // Decrypt the stored password, safely handling legacy plaintext passwords by returning ''
+      const url = urlSetting[0].value
+      const username = usernameSetting[0].value
       const rawPassword = passwordSetting[0].value
-      const decryptedPassword = rawPassword ? decrypt(rawPassword) : ''
+      const libraryId = libraryIdSetting[0].value
+
+      if (!url || !username || !rawPassword || !libraryId) {
+        return null
+      }
+
+      // Decrypt the stored password, safely handling legacy plaintext passwords by returning ''
+      const decryptedPassword = decrypt(rawPassword)
+
+      if (!decryptedPassword) {
+         return null
+      }
 
       return {
-        url: urlSetting[0].value,
-        username: usernameSetting[0].value,
+        url,
+        username,
         password: decryptedPassword,
-        libraryId: libraryIdSetting[0].value,
+        libraryId,
       }
     } catch (error) {
       logger.error('Failed to get BookLore configuration', { error: error instanceof Error ? error.message : error })
@@ -104,6 +116,9 @@ export class BookLoreService {
         const responseText = await response.text()
         
         if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+             throw new Error('Authentication failed: Invalid username or password')
+          }
           logger.error('BookLore authentication failed', {
             status: response.status,
             error: responseText.substring(0, 200),
@@ -194,6 +209,9 @@ export class BookLoreService {
         const responseText = await response.text()
         
         if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            throw new Error('Authentication failed: Invalid username or password')
+          }
           logger.error('BookLore connection test failed', {
             status: response.status,
             error: responseText.substring(0, 200),

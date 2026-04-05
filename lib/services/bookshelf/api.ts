@@ -32,6 +32,9 @@ export async function fetchWithTimeout<T>(
     logger.trace('Bookshelf API Response', { url, status: response.status });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Authentication failed: Invalid API key');
+      }
       throw new Error(`Bookshelf API error: ${response.status} ${response.statusText}`);
     }
 
