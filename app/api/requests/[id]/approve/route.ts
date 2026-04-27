@@ -167,16 +167,6 @@ async function postHandler(
           bookshelfId: result.bookshelfId,
         })
 
-        // The Request Transition: Mimirr officially added the book to Readarr.
-        // Remove the temporary search cache entry for this foreignBookId.
-        const { bookCache } = await import('@/lib/db')
-        try {
-          await db.delete(bookCache).where(eq(bookCache.id, result.foreignBookId || book.id))
-          logger.info('Cleaned up temporary cache for newly added book', { foreignBookId: result.foreignBookId || book.id })
-        } catch (cacheErr) {
-          logger.error('Failed to clean up temporary cache', { error: cacheErr instanceof Error ? cacheErr.message : cacheErr, foreignBookId: result.foreignBookId || book.id })
-        }
-
         // Get requesting user's details for notification
         const requestingUser = await db
           .select()

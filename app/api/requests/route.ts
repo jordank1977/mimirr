@@ -99,16 +99,6 @@ async function postHandler(request: NextRequest) {
         monitoringOption: 'specificBook'
       })
 
-      // The Request Transition: Mimirr officially added the book to Readarr.
-      // Remove the temporary search cache entry for this foreignBookId.
-      const { bookCache } = await import('@/lib/db')
-      try {
-        await db.delete(bookCache).where(eq(bookCache.id, validatedData.foreignBookId))
-        logger.info('Cleaned up temporary cache for newly added book', { foreignBookId: validatedData.foreignBookId })
-      } catch (cacheErr) {
-        logger.error('Failed to clean up temporary cache', { error: cacheErr instanceof Error ? cacheErr.message : cacheErr, foreignBookId: validatedData.foreignBookId })
-      }
-      
       return NextResponse.json({ request: newRequest }, { status: 201 })
     } else {
       // Handle regular request

@@ -1,5 +1,5 @@
 import { db, requests, users, settings, libraryBooks, bookCache, type Request, type NewRequest } from '@/lib/db'
-import { eq, and, desc, isNotNull, lt, sql } from 'drizzle-orm'
+import { eq, and, desc, isNotNull, lt, sql, or } from 'drizzle-orm'
 import { logger } from '@/lib/utils/logger'
 import { BookService } from './book.service'
 import { BookshelfService } from './bookshelf.service'
@@ -108,25 +108,33 @@ export class RequestService {
         .select({
           request: requests,
           username: users.username,
+          libraryBook: libraryBooks,
         })
         .from(requests)
         .leftJoin(users, eq(requests.userId, users.id))
+        .leftJoin(
+          libraryBooks,
+          or(
+            eq(requests.foreignBookId, libraryBooks.foreignBookId),
+            eq(requests.bookId, libraryBooks.foreignBookId)
+          )
+        )
         .where(eq(requests.userId, userId))
         .orderBy(desc(requests.requestedAt))
 
-      // Batch fetch all book details
+      // Batch fetch all book details for fallback metadata
       const bookIds = userRequests.map((r) => r.request.bookId)
       const booksMap = await BookService.getBooksByIds(bookIds)
 
-      // Enrich with book details
-      const enrichedRequests = userRequests.map(({ request, username }) => {
-        const book = booksMap.get(request.bookId)
+      // Enrich with book details (Dual-Layer: Library > Cache > Fallback)
+      const enrichedRequests = userRequests.map(({ request, username, libraryBook }) => {
+        const cachedBook = booksMap.get(request.bookId)
         return {
           ...request,
-          bookTitle: book?.title || 'Unknown Book',
-          bookAuthor: book?.author || 'Unknown Author',
-          bookCoverImage: book?.coverImage,
-          bookPublishedDate: book?.publishedDate,
+          bookTitle: libraryBook?.title || cachedBook?.title || 'Unknown Book',
+          bookAuthor: libraryBook?.authorName || cachedBook?.author || 'Unknown Author',
+          bookCoverImage: cachedBook?.coverImage, // Cover not in libraryBooks
+          bookPublishedDate: cachedBook?.publishedDate, // Pub date not in libraryBooks
           requestedBy: username || 'Unknown User',
         }
       })
@@ -147,24 +155,32 @@ export class RequestService {
         .select({
           request: requests,
           username: users.username,
+          libraryBook: libraryBooks,
         })
         .from(requests)
         .leftJoin(users, eq(requests.userId, users.id))
+        .leftJoin(
+          libraryBooks,
+          or(
+            eq(requests.foreignBookId, libraryBooks.foreignBookId),
+            eq(requests.bookId, libraryBooks.foreignBookId)
+          )
+        )
         .orderBy(desc(requests.requestedAt))
 
-      // Batch fetch all book details
+      // Batch fetch all book details for fallback metadata
       const bookIds = allRequests.map((r) => r.request.bookId)
       const booksMap = await BookService.getBooksByIds(bookIds)
 
-      // Enrich with book details
-      const enrichedRequests = allRequests.map(({ request, username }) => {
-        const book = booksMap.get(request.bookId)
+      // Enrich with book details (Dual-Layer: Library > Cache > Fallback)
+      const enrichedRequests = allRequests.map(({ request, username, libraryBook }) => {
+        const cachedBook = booksMap.get(request.bookId)
         return {
           ...request,
-          bookTitle: book?.title || 'Unknown Book',
-          bookAuthor: book?.author || 'Unknown Author',
-          bookCoverImage: book?.coverImage,
-          bookPublishedDate: book?.publishedDate,
+          bookTitle: libraryBook?.title || cachedBook?.title || 'Unknown Book',
+          bookAuthor: libraryBook?.authorName || cachedBook?.author || 'Unknown Author',
+          bookCoverImage: cachedBook?.coverImage, // Cover not in libraryBooks
+          bookPublishedDate: cachedBook?.publishedDate, // Pub date not in libraryBooks
           requestedBy: username || 'Unknown User',
         }
       })
