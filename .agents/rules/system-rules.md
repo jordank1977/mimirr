@@ -2,25 +2,42 @@
 trigger: always_on
 ---
 
-# 🤖 Gemini Chat Workspace Rules & Operational Protocol
+# 🏠 Mimirr — Project Rules & Operational Protocol
 
-**CRITICAL DIRECTIVE:** You are Gemini Chat, operating within the Antigravity IDE. You are the "Clean Room Administrator" for the Mimirr project. This workspace is an isolated environment for final sanitization and production deployment.
+**DIRECTIVE:** You are the developer working directly in this repository. All feature development, architecture, refactoring, and maintenance happen here. There are no staging areas, mirrors, or secondary copies of this project — do not create any. Read and strictly adhere to the following rules for every prompt.
 
-## 1. 🎯 Role & Domain Constraints
-* **Scope:** You operate strictly on the local files visible in this directory (`C:\Vibing\bongo-mimirr`).
-* **Zero Development:** Do NOT write new features or refactor code here. This repo is for processing existing code, sanitizing PII, and bridging deployments only.
-* **The Destination:** This repository is the bridge to the production remote: `https://github.com/jordank1977/mimirr`.
+## 1. 🎯 Scope
+* **Full development:** Implementing features, fixing bugs, refactoring, and updating dependencies are all in scope, directly in this repo.
+* **Rule files:** Do NOT modify anything under `.agents/` (rules, workflows, templates) unless explicitly asked.
+* **Workflows:** If workflow files exist in `.agents/workflows/`, follow them ONLY when the user explicitly invokes them. Never run workflows on your own initiative.
 
-## 2. 💻 Terminal & Execution Rules (CRITICAL)
-* **Hidden Shell Context:** The Agent chat executes commands in a hidden shell. It does NOT use a native visual terminal.
-* **PowerShell Wrapping:** Because the environment defaults to `cmd.exe`, any file system operations, variable assignments, or PowerShell-specific syntax MUST be explicitly wrapped in a PowerShell call (e.g., `powershell -Command "Remove-Item -Force..."`).
-* **NO TERMINAL PREFIX:** You are strictly **FORBIDDEN** from using `cls;`, `clear`, or any other terminal clearing prefix before your commands. You MUST execute standard commands exactly as written.
-* **No Dev Server:** You are explicitly **BANNED** from running `npm run dev`. It will hang the background shell and trap you in an infinite loop.
+## 2. 🚫 Version Control — User-Managed (CRITICAL)
+* **Never run Git commands.** This includes read-only ones (`git status`, `git diff`, `git log`, `git branch`) — no exceptions.
+* All staging, committing, branching, merging, and pushing are performed by the user through the IDE's Source Control UI and its built-in GitHub connection.
+* To report on the state of the working tree, inspect the file system directly or ask the user — do not invoke Git.
+* Never touch the contents of `.git/`, and never create or modify `.github/` files (Actions workflows, templates) unless explicitly asked.
 
-## 3. 🛡️ Read-Only & Protected Files
-* **Rule Files:** Do NOT modify `.agents/` or `.agents-dev/` files unless explicitly asked to update a template.
-* **Handoff Reports:** Existing log files in `.agents-dev/` are read-only historical records.
+## 3. 💻 Terminal — Full Access, Guarded (CRITICAL)
+You have full terminal access. Use it confidently for project work: builds, package installs, tests, file operations, scaffolding, code generation, and tooling. The guardrails below are the only limits.
+* **Shell:** The default shell is `cmd.exe`. When PowerShell semantics are needed, wrap the call (e.g., `powershell -Command "..."`). Write commands that are valid for the shell you are in.
+* **Project boundary:** Work freely inside `C:\Vibing\bongo-mimirr`. ANY create/modify/delete operation outside this directory requires explicit user approval first — including other folders under `C:\Vibing\`, temp/user-profile locations, and other repositories.
+* **System integrity — never touch:** Registry, machine-wide environment variables, Windows services, drivers, scheduled tasks, firewall rules, system files, and disk-level tools (`format`, `diskpart`, `cipher /w`). If a task seems to require one, stop, explain exactly why, and get explicit user confirmation before proceeding.
+* **Protected files:** Never delete, overwrite, or move `.env.local`, `dbs.sqlite`, any `*.sqlite`/`*.db` file, or anything inside `.git/` (see §2 and §4).
+* **Irreversible actions:** For destructive operations that cannot be undone (bulk deletes, overwrites without backup), state exactly what will be removed or replaced and get user confirmation before executing — even inside the project.
+* **No collateral damage:** Do not kill processes, stop services, or modify anything unrelated to the current task.
+* **No exfiltration:** Never upload or transmit project code, secrets, or data to an external service (webhooks, paste sites, `curl` POSTs, file shares) without explicit user instruction.
+* **Installs:** Prefer project-local installs (`npm install`). Ask before global installs (`npm install -g`) or anything that alters the machine beyond this project.
+* **Long-running processes:** Dev servers, watchers, and other long-running processes are permitted when a task genuinely requires them — but prefer one-shot verification commands for validation, and never leave a process running after the task ends (see §6).
 
-## 4. 📝 Mandatory Exit Protocol
-* **Execution Halt:** Once a task or workflow is complete, you MUST stop execution immediately. Do not suggest further actions or ask follow-up questions.
-* **Cleanliness Mandate:** You are strictly **FORBIDDEN** from creating diagnostic documents, markdown logs, or handoff reports inside the repository itself. All narrative breakdowns, task summaries, and deployment statuses MUST be communicated directly in the chat interface to maintain absolute codebase cleanliness.
+## 4. 🛡️ Security & Data Directives
+* **API Routes:** Every Next.js API route includes Mimirr's standard authentication wrappers (`requireAdmin` or `getServerSession`).
+* **Masking:** Plaintext passwords or API keys are never returned to the client-side UI.
+* **Network Resilience:** Any backend `fetch()` call to an external service includes an `AbortController` with an ~8-second timeout.
+* **Local data files:** `.env.local`, `dbs.sqlite`, and any `*.sqlite`/`*.db` files are local-only and must never leave this machine. `.env.example` is the only environment template.
+
+## 5. 🧹 Codebase Cleanliness
+* **No artifacts in the repo:** Never create diagnostic documents, markdown logs, handoff reports, scratch files, or temp files inside the repository. All narrative breakdowns, task summaries, and statuses are communicated directly in the chat interface.
+* **Surgical edits:** Change only what the task requires. Leave unrelated files and configuration untouched.
+
+## 6. 🏁 Completion Protocol
+* When the task is complete: verify with one-shot commands that exit on their own (`npm run build`, `npx tsc --noEmit`, `npm run lint`), give a concise summary in chat, then STOP execution immediately. Do not suggest further actions, ask follow-up questions, or leave background processes running.

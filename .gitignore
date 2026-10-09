@@ -2,8 +2,6 @@
 
 # Dependencies
 /node_modules
-/.pnp
-.pnp.js
 
 # Testing
 /coverage
@@ -12,45 +10,36 @@
 /.next/
 /out/
 
-# Production Build
-/build
+# Debug Logs
+npm-debug.log*
 
 # Misc & Keys
 .DS_Store
 *.pem
 *.key
-.claude/
-
-# Debug Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+.eslintcache
 
 # Secrets (Always Ignore)
 .env*
 !.env.example
 
-# Vercel
-.vercel
-
 # TypeScript
 *.tsbuildinfo
-next-env.d.ts
 
-# Database (Local SQLite)
-/config/db.sqlite
-/config/db.sqlite-shm
-/config/db.sqlite-wal
+# Database (Local SQLite — local-only, never commit)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
 
 # Application Logs
 /logs/
 /config/logs/
 
 # -------------------------------------------------------------------
-# CLEAN ROOM PROTECTION (Always Ignore in Repo B)
+# AI / Agent Context
 # -------------------------------------------------------------------
-# These folders contain your local OPSEC workflows, PII handoff logs,
-# and AI instructions. They MUST NOT be pushed to production.
-.cline-dev/
-.clinerules/
-.julesrules/
+# .agents/ IS tracked and pushed (rules + workflows are part of the
+# project). One workflow exception stays local-only — see
+# .git/info/exclude rather than listing it here.
+.agents-dev/
