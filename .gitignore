@@ -18,6 +18,7 @@
 # Misc & Keys
 .DS_Store
 *.pem
+*.key
 .claude/
 
 # Debug Logs

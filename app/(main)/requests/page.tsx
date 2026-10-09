@@ -162,7 +162,7 @@ export default function RequestsPage() {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <div className="bg-background-card border border-border rounded-lg p-4">
           <p className="text-sm text-foreground-muted">Total</p>
           <p className="text-2xl font-bold">{stats.total}</p>
