@@ -1,6 +1,7 @@
 import { db, settings } from '@/lib/db'
 import { eq } from 'drizzle-orm'
 import { logger } from '@/lib/utils/logger'
+import { formatCoverImageUrl } from '@/lib/utils/format-cover-image'
 
 export type MimirrState = 'Unowned' | 'Requested' | 'Processing' | 'Available' | 'Unreleased';
 
@@ -36,6 +37,7 @@ export interface TargetBookShape {
 
   // Also pass the raw ids for requesting the book later
   foreignBookId?: string;
+  foreignAuthorId?: string;
   readarrBookId?: number;
 }
 
@@ -61,6 +63,49 @@ export class ReadarrService {
   }
 
   /**
+   * Helper to extract valid cover art: prefers remote URL, falls back to local Readarr media cover
+   */
+  public static extractCoverArt(imagesList: any[] = [], extraCandidates: (string | null | undefined)[] = []): string | undefined {
+    // 0. Check explicit candidate URLs (e.g. remoteCover, remotePoster)
+    for (const candidate of extraCandidates) {
+      if (candidate && typeof candidate === 'string') {
+        const trimmed = candidate.trim()
+        if (trimmed && trimmed !== 'null' && trimmed !== 'undefined') {
+          if (trimmed.startsWith('//')) {
+            return `https:${trimmed}`
+          }
+          if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+            return trimmed
+          }
+        }
+      }
+    }
+
+    // 1. Look for a valid remoteUrl that is not 'null' and starts with http or protocol-relative
+    for (const img of imagesList) {
+      if (img?.remoteUrl && typeof img.remoteUrl === 'string') {
+        const trimmed = img.remoteUrl.trim()
+        if (trimmed && trimmed !== 'null' && trimmed !== 'undefined') {
+          if (trimmed.startsWith('//')) {
+            return `https:${trimmed}`
+          }
+          if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+            return trimmed
+          }
+        }
+      }
+    }
+
+    // 2. Fall back to local Readarr media cover url
+    for (const img of imagesList) {
+      if (img?.url && img.url !== 'null' && img.url !== 'undefined') {
+        return formatCoverImageUrl(img.url)
+      }
+    }
+    return undefined
+  }
+
+  /**
    * Method A: Outward Discovery
    * Step 1: Search Readarr (Initial Book List) using /search endpoint
    * Retrieves the Golden Payload with deep metadata.
@@ -69,11 +114,11 @@ export class ReadarrService {
     try {
       const { url, apiKey } = await this.getReadarrConfig()
 
-      // When querying by goodreads id, we MUST NOT URL-encode the colon
-      // E.g., goodreads:12345, NOT goodreads%3A12345
-      const isForeignIdQuery = query.startsWith('goodreads:');
-      const term = isForeignIdQuery
-        ? `goodreads:${encodeURIComponent(query.replace('goodreads:', ''))}`
+      // When querying by prefixed IDs, we MUST NOT URL-encode the colon
+      // E.g., work:12345, goodreads:12345, edition:12345, NOT work%3A12345
+      const prefixMatch = query.match(/^(goodreads|work|edition|author|isbn|asin):(.+)$/i);
+      const term = prefixMatch
+        ? `${prefixMatch[1]}:${encodeURIComponent(prefixMatch[2])}`
         : encodeURIComponent(query);
 
       const searchUrl = `${url}/api/v1/search?term=${term}`
@@ -115,12 +160,27 @@ export class ReadarrService {
             const firstEdition = Array.isArray(editions) && editions.length > 0 ? editions[0] : null;
             const cleanTitle = book.title?.replace(/\s+by\s+.+$/i, '').trim() || 'Unknown Title';
 
-            let coverArt = firstEdition?.images?.[0]?.remoteUrl
-                          || book.images?.find((img: any) => img.coverType === 'cover')?.remoteUrl
-                          || book.images?.[0]?.remoteUrl
-                          || undefined;
+            const allImages = [
+              ...(firstEdition?.images || []),
+              ...(book.images || [])
+            ];
+            const extraCandidates = [
+              book.remoteCover,
+              firstEdition?.remoteCover,
+              item.remotePoster,
+              item.author?.remotePoster
+            ];
+            let coverArt = ReadarrService.extractCoverArt(allImages, extraCandidates);
+            const isbnValue = item.editions?.[0]?.isbn13 || item.editions?.[0]?.isbn || firstEdition?.isbn13 || firstEdition?.isbn;
 
-            if (coverArt === 'null') coverArt = undefined;
+            if (isbnValue) {
+              if (coverArt && coverArt.includes('/api/mediacover/')) {
+                const sep = coverArt.includes('?') ? '&' : '?';
+                coverArt = `${coverArt}${sep}isbn=${encodeURIComponent(isbnValue)}`;
+              } else if (!coverArt) {
+                coverArt = `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbnValue)}-L.jpg?default=false`;
+              }
+            }
 
             const mapped = {
               "Book Title": cleanTitle,
@@ -129,11 +189,14 @@ export class ReadarrService {
               "Pages": book.pageCount || firstEdition?.pageCount || 0,
               "Published Date": book.releaseDate || firstEdition?.releaseDate || 'Unknown Date',
               "Publisher": item.editions?.[0]?.publisher || firstEdition?.publisher || "Unknown Publisher",
-              "ISBN": item.editions?.[0]?.isbn13 || item.editions?.[0]?.isbn || firstEdition?.isbn13 || firstEdition?.isbn || "Unknown ISBN",
+              "ISBN": isbnValue || "Unknown ISBN",
               "Description": item.book?.overview || book.overview || firstEdition?.overview || "No description available",
               "Genres": Array.isArray(book.genres) ? book.genres.join(", ") : "",
               "Cover Art": coverArt,
             };
+
+            const rawForeignAuthorId = item.author?.foreignAuthorId || book.author?.foreignAuthorId || (book.authorId ? String(book.authorId) : undefined);
+            const foreignAuthorId = rawForeignAuthorId ? String(rawForeignAuthorId) : undefined;
 
             return {
               id: book.foreignBookId || book.id?.toString() || Math.random().toString(),
@@ -152,6 +215,7 @@ export class ReadarrService {
               coverImage: mapped["Cover Art"],
               _rawMapping: mapped,
               foreignBookId: book.foreignBookId,
+              foreignAuthorId: foreignAuthorId,
               readarrBookId: book.id
             };
           });
@@ -318,13 +382,12 @@ export class ReadarrService {
       // Clean title ("Title by Author")
       const cleanTitle = fullBook.title?.replace(/\s+by\s+.+$/i, '').trim() || 'Unknown Title'
 
-      // Get cover art remote URL
-      let coverArt = fullBook.images?.find((img: any) => img.coverType === 'cover')?.remoteUrl
-                    || fullBook.images?.[0]?.remoteUrl
-                    || fullBook.images?.find((img: any) => img.coverType === 'cover')?.url
-                    || undefined
-
-      if (coverArt === 'null') coverArt = undefined;
+      // Get cover art remote URL or local fallback
+      const allImages = [
+        ...(firstEdition?.images || []),
+        ...(fullBook.images || [])
+      ];
+      const coverArt = ReadarrService.extractCoverArt(allImages);
 
       const mapped = {
         "Book Title": cleanTitle,
@@ -354,6 +417,13 @@ export class ReadarrService {
         coverImage: mapped["Cover Art"],
         _rawMapping: mapped,
         foreignBookId: book.foreignBookId,
+        foreignAuthorId: fullBook.author?.foreignAuthorId
+          ? String(fullBook.author.foreignAuthorId)
+          : (book.foreignAuthorId
+              ? String(book.foreignAuthorId)
+              : (fullBook.authorId
+                  ? String(fullBook.authorId)
+                  : (book.authorId ? String(book.authorId) : undefined))),
         readarrBookId: book.id
       }
 
@@ -364,8 +434,7 @@ export class ReadarrService {
       const cleanTitle = book.title?.replace(/\s+by\s+.+$/i, '').trim() || 'Unknown Title'
       const isExternal = !book.id || book.id === 0;
 
-      let coverArt = book.images?.[0]?.remoteUrl;
-      if (coverArt === 'null') coverArt = undefined;
+      const coverArt = ReadarrService.extractCoverArt(book.images || []);
 
       const mapped = {
         "Book Title": cleanTitle,
@@ -395,6 +464,7 @@ export class ReadarrService {
         coverImage: mapped["Cover Art"],
         _rawMapping: mapped,
         foreignBookId: book.foreignBookId,
+        foreignAuthorId: book.foreignAuthorId || (book.author?.foreignAuthorId ? String(book.author.foreignAuthorId) : (book.authorId ? String(book.authorId) : undefined)),
         readarrBookId: book.id
       }
     }

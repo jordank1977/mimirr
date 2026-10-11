@@ -34,3 +34,5 @@ export const GET = withLogging(async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 });
+
+export const POST = GET;

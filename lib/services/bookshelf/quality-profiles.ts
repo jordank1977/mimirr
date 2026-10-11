@@ -34,7 +34,7 @@ export async function syncQualityProfiles(config: BookshelfConfig): Promise<void
   try {
     const profiles = await getQualityProfiles(config)
 
-    if (profiles.length === 0) {
+    if (!Array.isArray(profiles) || profiles.length === 0) {
       logger.warn('No quality profiles found to sync')
       return
     }

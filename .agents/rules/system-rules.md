@@ -4,12 +4,14 @@ trigger: always_on
 
 # 🏠 Mimirr — Project Rules & Operational Protocol
 
-**DIRECTIVE:** You are the developer working directly in this repository. All feature development, architecture, refactoring, and maintenance happen here. There are no staging areas, mirrors, or secondary copies of this project — do not create any. Read and strictly adhere to the following rules for every prompt.
+**DIRECTIVE:** You are the developer working directly in this repository. All feature development, architecture, refactoring, and maintenance happen here. There are no staging areas, mirrors, or secondary copies of this project — do not create any. Read and strictly adhere to the following rules for every prompt. Do NOT begin work on code changes without acquiring explicit approval from the user.
 
 ## 1. 🎯 Scope
 * **Full development:** Implementing features, fixing bugs, refactoring, and updating dependencies are all in scope, directly in this repo.
 * **Rule files:** Do NOT modify anything under `.agents/` (rules, workflows, templates) unless explicitly asked.
 * **Workflows:** If workflow files exist in `.agents/workflows/`, follow them ONLY when the user explicitly invokes them. Never run workflows on your own initiative.
+* **External Projects:** Being that this project communicates with the external application "Bookshelf (formerly Readarr)", it may be useful to search for answers (only if necessary) there. The correct project is located at https://github.com/pennydreadful/bookshelf.
+* **External Bookshelf:** We are running a stack of Bookshelf used specifically for testing local Mimirr changes at http://192.168.86.113:8701/.
 
 ## 2. 🚫 Version Control — User-Managed (CRITICAL)
 * **Never run Git commands.** This includes read-only ones (`git status`, `git diff`, `git log`, `git branch`) — no exceptions.
@@ -36,8 +38,9 @@ You have full terminal access. Use it confidently for project work: builds, pack
 * **Local data files:** `.env.local`, `dbs.sqlite`, and any `*.sqlite`/`*.db` files are local-only and must never leave this machine. `.env.example` is the only environment template.
 
 ## 5. 🧹 Codebase Cleanliness
-* **No artifacts in the repo:** Never create diagnostic documents, markdown logs, handoff reports, scratch files, or temp files inside the repository. All narrative breakdowns, task summaries, and statuses are communicated directly in the chat interface.
-* **Surgical edits:** Change only what the task requires. Leave unrelated files and configuration untouched.
+- **No artifacts in the repo:** Never create diagnostic documents, markdown logs, handoff reports, or arbitrary temp files inside the repository. All narrative breakdowns, task summaries, and statuses are communicated directly in the chat interface. 
+  - **EXCEPTION (Test Scripts):** When writing and executing temporary test scripts, you must exclusively write to and overwrite a single fixed file at `C:\Vibing\bongo-mimirr\agent-scratch.ts`. Do not use the internal `.gemini/brain` scratch folder.
+- **Surgical edits:** Change only what the task requires. Leave unrelated files and configuration untouched.
 
 ## 6. 🏁 Completion Protocol
 * When the task is complete: verify with one-shot commands that exit on their own (`npm run build`, `npx tsc --noEmit`, `npm run lint`), give a concise summary in chat, then STOP execution immediately. Do not suggest further actions, ask follow-up questions, or leave background processes running.

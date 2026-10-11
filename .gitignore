@@ -5,6 +5,7 @@
 
 # Testing
 /coverage
+agent-scratch.ts
 
 # Next.js Build Artifacts
 /.next/

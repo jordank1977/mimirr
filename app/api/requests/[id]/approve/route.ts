@@ -115,51 +115,22 @@ async function postHandler(
           {
             title: book.title,
             author: book.author || 'Unknown Author',
-            foreignBookId: book.id, // Book ID correlates to the foreign Book ID
+            foreignBookId: existingRequest.foreignBookId || book.id,
+            foreignAuthorId: existingRequest.foreignAuthorId || undefined,
             qualityProfileId: existingRequest.qualityProfileId,
             rootFolderPath: rootFolderPath,
           }
         )
 
         if (!result.success) {
-          if (result.requiresManualIntervention) {
-            logger.warn('Bookshelf Circuit Breaker Triggered', { requestId, message: result.message })
-            
-            await RequestService.updateRequest(requestId, {
-              status: 'error',
-              notes: result.message
-            })
-
-            const adminIds = await NotificationService.getAdminUserIds()
-            const requestingUser = await db
-              .select()
-              .from(users)
-              .where(eq(users.id, existingRequest.userId))
-              .limit(1)
-            const username = requestingUser[0]?.username || 'Unknown User'
-
-            await NotificationService.sendNotification(
-              adminIds,
-              'bookshelf_error',
-              'Manual Intervention Required',
-              book.title,
-              book.author || 'Unknown Author',
-              result.message || 'Goodreads metadata conflict detected.',
-              book.coverImage,
-              username,
-              'Error',
-              'Unknown',
-              '/requests/all'
-            )
-            return
-          }
-          throw new Error(result.error)
+          throw new Error(result.error || 'Failed to add book to Bookshelf')
         }
 
-        // Update request with Bookshelf ID and mark as processing/approved
+        // Update request with Bookshelf ID and clear any legacy notes
         await RequestService.updateRequest(requestId, {
           bookshelfId: result.bookshelfId,
           foreignBookId: result.foreignBookId,
+          notes: '',
         })
 
         logger.info('Background Bookshelf addition successful', {

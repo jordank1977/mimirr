@@ -1,8 +1,12 @@
+'use client'
+
+import { useState } from 'react'
 import Image from 'next/image'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { RequestStatusBadge } from './request-status-badge'
 import type { RequestWithBook } from '@/lib/services/request.service'
+import { formatCoverImageUrl } from '@/lib/utils/format-cover-image'
 
 interface RequestCardProps {
   request: RequestWithBook
@@ -10,7 +14,9 @@ interface RequestCardProps {
 }
 
 export function RequestCard({ request, onDelete }: RequestCardProps) {
+  const [imageError, setImageError] = useState(false)
   const requestDate = new Date(request.requestedAt).toLocaleDateString()
+  const coverUrl = formatCoverImageUrl(request.bookCoverImage)
 
   return (
     <Card className="overflow-hidden">
@@ -18,13 +24,15 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
         <div className="flex gap-4">
           {/* Book Cover */}
           <div className="flex-shrink-0 w-16 h-24 relative bg-background-hover rounded overflow-hidden">
-            {request.bookCoverImage && request.bookCoverImage !== 'null' && !request.bookCoverImage.startsWith('/') ? (
+            {coverUrl && !imageError ? (
               <Image
-                src={request.bookCoverImage}
+                src={coverUrl}
                 alt={request.bookTitle || 'Unknown Book'}
                 fill
                 className="object-cover"
                 sizes="64px"
+                unoptimized={coverUrl.startsWith('/api/mediacover/')}
+                onError={() => setImageError(true)}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-foreground-muted">
@@ -50,7 +58,10 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
             </div>
             {request.status === 'error' && request.notes && (
               <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded border border-red-200 dark:border-red-800/30 whitespace-pre-wrap">
-                {request.notes}
+                {request.notes.includes('MIMIRR_MANUAL_INTERVENTION_REQUIRED') ||
+                request.notes.includes('MIMIRR_SYNC_FAILED')
+                  ? 'Pending Admin Verification — our team has been notified.'
+                  : request.notes}
               </div>
             )}
 
@@ -74,7 +85,7 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
                     })}
                   </p>
                 )}
-              {request.notes && (
+              {request.notes && request.status !== 'error' && (
                 <p className="italic line-clamp-2">Note: {request.notes}</p>
               )}
             </div>

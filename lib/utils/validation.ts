@@ -28,6 +28,8 @@ export const createRequestSchema = z.object({
   bookId: z.string().min(1, 'Book ID is required'),
   qualityProfileId: z.number().int().positive('Quality profile ID is required'),
   notes: z.string().max(500).optional(),
+  foreignAuthorId: z.string().optional(),
+  foreignBookId: z.string().optional(),
 })
 
 export const createOnlyThisBookRequestSchema = z.object({
@@ -45,9 +47,29 @@ export const updateRequestSchema = z.object({
   notes: z.string().max(500).optional(),
 })
 
+/**
+ * Strips known browser UI paths from Bookshelf URLs
+ */
+export function sanitizeBookshelfUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl)
+    const uiPathsToStrip = ['/settings/general', '/settings', '/system', '/activity', '/calendar', '/books', '/wanted']
+    let pathname = parsed.pathname.replace(/\/+$/, '')
+    for (const p of uiPathsToStrip) {
+      if (pathname.toLowerCase().endsWith(p)) {
+        pathname = pathname.slice(0, -p.length)
+        break
+      }
+    }
+    return `${parsed.origin}${pathname}`.replace(/\/+$/, '')
+  } catch {
+    return rawUrl.trim().replace(/\/+$/, '')
+  }
+}
+
 // Settings schemas
 export const bookshelfSettingsSchema = z.object({
-  url: z.string().url('Invalid URL'),
+  url: z.string().url('Invalid URL').transform(sanitizeBookshelfUrl),
   apiKey: z.string().min(1, 'API key is required'),
 })
 

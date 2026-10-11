@@ -110,6 +110,8 @@ async function postHandler(request: NextRequest) {
         bookId: validatedData.bookId,
         qualityProfileId: validatedData.qualityProfileId,
         notes: validatedData.notes,
+        foreignAuthorId: validatedData.foreignAuthorId,
+        foreignBookId: validatedData.foreignBookId,
       })
 
       // Update user preferences based on new request (non-blocking)

@@ -3,33 +3,47 @@ import { eq, inArray } from 'drizzle-orm'
 import { logger } from '@/lib/utils/logger'
 import type { Book } from '@/types/bookinfo'
 import { MOOD_KEYWORDS, PACE_KEYWORDS } from './recommendation.service'
+import { formatCoverImageUrl } from '@/lib/utils/format-cover-image'
 
 export class BookService {
   private static CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+  private static foreignAuthorIdCache = new Map<string, string>()
 
   /**
    * Check if cached book is still valid
-   * High-Fidelity Check: If missing critical Golden fields, treat as expired regardless of age.
+   * High-Fidelity Check: If missing critical Golden fields, treat as expired if older than grace period.
    */
   private static isCacheValid(cachedBook: BookCache): boolean {
     const now = new Date()
     const cacheAge = now.getTime() - cachedBook.cachedAt.getTime()
 
-    // Check for Golden fields
-    const hasGoldenFields =
-      cachedBook.description &&
-      cachedBook.isbn13 &&
-      cachedBook.publisher &&
-      cachedBook.description !== "No description available" &&
-      cachedBook.description !== "Description available after requesting" &&
-      cachedBook.isbn13 !== "Unknown ISBN" &&
-      cachedBook.publisher !== "Unknown Publisher";
-
-    if (!hasGoldenFields) {
-      return false; // Force re-hydration
+    // Expired if older than CACHE_TTL
+    if (cacheAge >= this.CACHE_TTL) {
+      return false
     }
 
-    return cacheAge < this.CACHE_TTL
+    // If stub is missing essential title or author, force re-hydration
+    if (!cachedBook.title || !cachedBook.author || cachedBook.title === 'Unknown Title') {
+      return false
+    }
+
+    // Check for Golden fields (description and isbn).
+    // Note: publisher is frequently omitted in upstream metadata (e.g. self-published, indie, or upcoming books),
+    // so "Unknown Publisher" must not permanently invalidate a valid cached book.
+    const hasGoldenFields =
+      cachedBook.description &&
+      cachedBook.description !== "No description available" &&
+      cachedBook.description !== "Description available after requesting" &&
+      cachedBook.isbn13 &&
+      cachedBook.isbn13 !== "Unknown ISBN";
+
+    // If missing golden fields, allow a 5-minute grace period so fresh search results
+    // are not immediately invalidated upon opening their details page.
+    if (!hasGoldenFields && cacheAge > 5 * 60 * 1000) {
+      return false;
+    }
+
+    return true
   }
 
   /**
@@ -67,6 +81,10 @@ export class BookService {
             lastAccessedAt: now,
           },
         })
+
+      if (book.foreignAuthorId) {
+        this.foreignAuthorIdCache.set(book.id, book.foreignAuthorId)
+      }
 
       logger.debug('Book cached', { bookId: book.id, title: book.title })
     } catch (error) {
@@ -126,7 +144,7 @@ export class BookService {
       "ISBN": cachedBook.isbn13 || cachedBook.isbn || "Unknown ISBN",
       "Description": cachedBook.description || "No description available",
       "Genres": Array.isArray(genres) ? genres.join(", ") : "",
-      "Cover Art": cachedBook.coverImage === 'null' ? undefined : (cachedBook.coverImage || undefined),
+      "Cover Art": formatCoverImageUrl(cachedBook.coverImage),
     }
 
     return {
@@ -144,6 +162,7 @@ export class BookService {
       coverImage: mapped["Cover Art"],
       _rawMapping: mapped,
       foreignBookId: id,
+      foreignAuthorId: cachedBook.foreignAuthorId || this.foreignAuthorIdCache.get(id) || undefined,
       readarrBookId: undefined
     }
   }
@@ -253,6 +272,12 @@ export class BookService {
         if (this.isCacheValid(cachedBook)) {
           logger.debug('Using valid cached book', { bookId: id })
           await this.updateLastAccessed(id)
+          if (!cachedParsedBook.foreignAuthorId) {
+            const cachedForeignAuthorId = this.foreignAuthorIdCache.get(id)
+            if (cachedForeignAuthorId) {
+              cachedParsedBook.foreignAuthorId = cachedForeignAuthorId
+            }
+          }
           return cachedParsedBook
         } else {
           logger.debug('Cache expired, attempting to refresh', { bookId: id })
@@ -264,14 +289,45 @@ export class BookService {
         const { ReadarrService } = await import('@/lib/services/readarr.service');
 
         // Step 1: Look up the book in Readarr.
-        // `searchBooks` now returns TargetBookShape[] mapped with Golden Payload.
+        // `searchBooks` returns TargetBookShape[] mapped with Golden Payload.
         let targetBookShape: any = null;
         try {
-          const books = await ReadarrService.searchBooks(`goodreads:${id}`);
-          if (Array.isArray(books) && books.length > 0) {
-            // Pick the first result from the array which contains the 10-field payload
-            targetBookShape = books[0];
+          // 1. Try work: prefix (standard in Readarr / rreading-glasses for foreignBookId)
+          let books = await ReadarrService.searchBooks(`work:${id}`);
+          let match = Array.isArray(books) ? books.find(b => String(b.foreignBookId) === String(id)) : null;
+
+          // 2. Try goodreads: prefix (legacy / alternative provider)
+          if (!match) {
+            books = await ReadarrService.searchBooks(`goodreads:${id}`);
+            match = Array.isArray(books) ? books.find(b => String(b.foreignBookId) === String(id)) : null;
           }
+
+          // 3. Try edition: prefix
+          if (!match) {
+            books = await ReadarrService.searchBooks(`edition:${id}`);
+            match = Array.isArray(books) ? books.find(b => String(b.foreignBookId) === String(id)) : null;
+          }
+
+          // 4. If we have cached info (isbn, title, author), try searching by exact ISBN or title + author
+          if (!match && cached.length > 0) {
+            const cachedBook = cached[0];
+            const isbn = cachedBook.isbn13 || cachedBook.isbn;
+            if (isbn && isbn !== 'Unknown ISBN') {
+              books = await ReadarrService.searchBooks(`isbn:${isbn}`);
+              match = Array.isArray(books)
+                ? books.find(b => String(b.foreignBookId) === String(id) || (b.title && b.title.toLowerCase() === cachedBook.title?.toLowerCase()))
+                : null;
+            }
+            if (!match && cachedBook.title && cachedBook.title !== 'Unknown Title') {
+              const query = cachedBook.author && cachedBook.author !== 'Unknown Author'
+                ? `${cachedBook.title} ${cachedBook.author}`
+                : cachedBook.title;
+              books = await ReadarrService.searchBooks(query);
+              match = Array.isArray(books) ? books.find(b => String(b.foreignBookId) === String(id)) : null;
+            }
+          }
+
+          targetBookShape = match || null;
         } catch (innerError) {
           logger.error('Failed to look up book in Readarr via ReadarrService', { error: innerError instanceof Error ? innerError.message : innerError, bookId: id })
           throw innerError
@@ -293,7 +349,8 @@ export class BookService {
             genres: targetBookShape.genres,
             coverImage: targetBookShape.coverImage,
             _rawMapping: targetBookShape._rawMapping,
-            foreignBookId: targetBookShape.foreignBookId,
+            foreignBookId: targetBookShape.foreignBookId || id,
+            foreignAuthorId: targetBookShape.foreignAuthorId,
             readarrBookId: targetBookShape.readarrBookId
           }
 
@@ -307,7 +364,11 @@ export class BookService {
           // Check if we have stale cache as fallback
           if (cached.length > 0) {
             logger.debug('Using stale cache as fallback', { bookId: id })
-            return this.formatToTargetShape(id, cached[0])
+            const staleBook = this.formatToTargetShape(id, cached[0])
+            if (!staleBook.foreignAuthorId) {
+              staleBook.foreignAuthorId = this.foreignAuthorIdCache.get(id)
+            }
+            return staleBook
           }
 
           return null
@@ -321,7 +382,11 @@ export class BookService {
         // Check if we have any cache as fallback
         if (cached.length > 0) {
           logger.debug('Using cache as fallback after fetch failure', { bookId: id })
-          return this.formatToTargetShape(id, cached[0])
+          const fallbackBook = this.formatToTargetShape(id, cached[0])
+          if (!fallbackBook.foreignAuthorId) {
+            fallbackBook.foreignAuthorId = this.foreignAuthorIdCache.get(id)
+          }
+          return fallbackBook
         }
         
         return null

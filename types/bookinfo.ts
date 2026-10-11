@@ -94,6 +94,8 @@ export interface Book {
   requestStatus?: 'pending' | 'approved' | 'declined' | 'available' | 'processing'
   requestId?: number
   availableFormat?: string
+  foreignBookId?: string
+  foreignAuthorId?: string
 }
 
 // Author type for recommendations

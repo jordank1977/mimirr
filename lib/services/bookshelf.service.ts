@@ -24,15 +24,25 @@ export class BookshelfService {
    */
   static async testConnection(config: BookshelfConfig): Promise<boolean> {
     try {
-      logger.trace('Testing connection to Bookshelf API', { url: config.url })
-      const response = await fetch(`${config.url}/api/v3/system/status`, {
+      const cleanUrl = config.url.replace(/\/$/, '')
+      logger.trace('Testing connection to Bookshelf API', { url: cleanUrl })
+      const response = await fetch(`${cleanUrl}/api/v1/system/status`, {
         headers: {
           'X-Api-Key': config.apiKey,
         },
       })
 
-      logger.trace('Bookshelf API connection response', { url: config.url, status: response.status })
-      return response.ok
+      logger.trace('Bookshelf API connection response', { url: cleanUrl, status: response.status })
+      if (!response.ok) return false
+
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        logger.warn('Bookshelf returned non-JSON response during connection test', { contentType })
+        return false
+      }
+
+      const data = await response.json()
+      return !!(data && (data.version || data.appName))
     } catch (error) {
       logger.error('Bookshelf connection test failed', { error: error instanceof Error ? error.message : error })
       return false
@@ -47,13 +57,21 @@ export class BookshelfService {
   static getLibraryBooks = BooksAPI.getLibraryBooks
   static getBook = BooksAPI.getBook
   static getBookEditions = BooksAPI.getBookEditions
-  static getLibraryAuthors = AuthorsAPI.getLibraryAuthors
-  static lookupAuthor = BooksAPI.lookupAuthor
   static searchBooks = BooksAPI.searchBooks
   static triggerBookSearch = BooksAPI.triggerBookSearch
   static getRootFolders = BooksAPI.getRootFolders
   static addBook = BooksAPI.addBook
   static getAuthorBookStatus = BooksAPI.getAuthorBookStatus
+
+  // ============================================================
+  // Authors API (delegated to ./bookshelf/authors.ts)
+  // ============================================================
+
+  static getLibraryAuthors = AuthorsAPI.getLibraryAuthors
+  static lookupAuthor = AuthorsAPI.lookupAuthor
+  static addAuthor = AuthorsAPI.addAuthor
+  static refreshAuthor = AuthorsAPI.refreshAuthor
+  static getAuthorBooks = AuthorsAPI.getAuthorBooks
 
   // ============================================================
   // Quality Profiles API (delegated to ./bookshelf/quality-profiles.ts)

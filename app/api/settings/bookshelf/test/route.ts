@@ -39,13 +39,15 @@ async function postHandler(request: NextRequest) {
         apiKey: validatedData.apiKey,
       })
 
-      profiles = qualityProfiles.map((profile: any, index: number) => ({
-        id: 0, // Temporary ID for preview
-        profileId: profile.id,
-        profileName: profile.name,
-        enabled: true, // Default to enabled for new profiles
-        orderIndex: index,
-      }))
+      if (Array.isArray(qualityProfiles)) {
+        profiles = qualityProfiles.map((profile: any, index: number) => ({
+          id: 0, // Temporary ID for preview
+          profileId: profile.id,
+          profileName: profile.name,
+          enabled: true, // Default to enabled for new profiles
+          orderIndex: index,
+        }))
+      }
     } catch (error) {
       logger.error('Failed to fetch quality profiles during test', { error: error instanceof Error ? error.message : error })
       // Don't fail the test if profile fetch fails

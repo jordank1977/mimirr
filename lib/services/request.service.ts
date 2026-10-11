@@ -1,9 +1,10 @@
 import { db, requests, users, settings, libraryBooks, bookCache, type Request, type NewRequest } from '@/lib/db'
-import { eq, and, desc, isNotNull, lt, sql, or } from 'drizzle-orm'
+import { eq, and, desc, isNotNull, lt, sql, or, inArray } from 'drizzle-orm'
 import { logger } from '@/lib/utils/logger'
 import { BookService } from './book.service'
 import { BookshelfService } from './bookshelf.service'
 import { NotificationService } from './notification.service'
+import { formatCoverImageUrl } from '@/lib/utils/format-cover-image'
 
 export interface RequestWithBook extends Request {
   bookTitle: string
@@ -37,6 +38,8 @@ export class RequestService {
     bookId: string
     qualityProfileId: number
     notes?: string
+    foreignAuthorId?: string
+    foreignBookId?: string
   }): Promise<Request> {
     try {
       // Check if user already has a pending/approved request for this book
@@ -56,8 +59,19 @@ export class RequestService {
         throw new Error('You already have a pending request for this book')
       }
 
-      // Fetch book details to cache them
-      await BookService.getBookById(data.bookId)
+      // Fetch book details to cache them and resolve foreign IDs if omitted
+      let foreignAuthorId = data.foreignAuthorId
+      let foreignBookId = data.foreignBookId
+
+      const book = await BookService.getBookById(data.bookId)
+      if (book) {
+        if (!foreignAuthorId && book.foreignAuthorId) {
+          foreignAuthorId = book.foreignAuthorId
+        }
+        if (!foreignBookId) {
+          foreignBookId = book.foreignBookId || data.bookId
+        }
+      }
 
       const newRequest: NewRequest = {
         userId: data.userId,
@@ -66,6 +80,8 @@ export class RequestService {
         notes: data.notes,
         status: 'pending',
         requestedAt: new Date(),
+        foreignAuthorId: foreignAuthorId || null,
+        foreignBookId: foreignBookId || data.bookId,
       }
 
       const result = await db.insert(requests).values(newRequest).returning()
@@ -75,6 +91,8 @@ export class RequestService {
         userId: data.userId,
         bookId: data.bookId,
         qualityProfileId: data.qualityProfileId,
+        foreignAuthorId: result[0].foreignAuthorId,
+        foreignBookId: result[0].foreignBookId,
       })
 
       return result[0]
@@ -122,19 +140,31 @@ export class RequestService {
         .where(eq(requests.userId, userId))
         .orderBy(desc(requests.requestedAt))
 
-      // Batch fetch all book details for fallback metadata
-      const bookIds = userRequests.map((r) => r.request.bookId)
+      // Batch fetch all book details for fallback metadata (including foreignBookId)
+      const bookIds = Array.from(
+        new Set(
+          userRequests.flatMap((r) => [r.request.bookId, r.request.foreignBookId].filter(Boolean) as string[])
+        )
+      )
       const booksMap = await BookService.getBooksByIds(bookIds)
 
       // Enrich with book details (Dual-Layer: Library > Cache > Fallback)
       const enrichedRequests = userRequests.map(({ request, username, libraryBook }) => {
-        const cachedBook = booksMap.get(request.bookId)
+        const cachedBook = booksMap.get(request.bookId) || (request.foreignBookId ? booksMap.get(request.foreignBookId) : undefined)
+
+        // Resolve cover: cachedBook.coverImage > Readarr bookshelfId fallback
+        let coverImage = cachedBook?.coverImage
+        if ((!coverImage || coverImage === 'null') && request.bookshelfId) {
+          coverImage = `/MediaCover/Books/${request.bookshelfId}/cover.jpeg`
+        }
+        coverImage = formatCoverImageUrl(coverImage)
+
         return {
           ...request,
           bookTitle: libraryBook?.title || cachedBook?.title || 'Unknown Book',
           bookAuthor: libraryBook?.authorName || cachedBook?.author || 'Unknown Author',
-          bookCoverImage: cachedBook?.coverImage, // Cover not in libraryBooks
-          bookPublishedDate: cachedBook?.publishedDate, // Pub date not in libraryBooks
+          bookCoverImage: coverImage,
+          bookPublishedDate: cachedBook?.publishedDate,
           requestedBy: username || 'Unknown User',
         }
       })
@@ -168,19 +198,31 @@ export class RequestService {
         )
         .orderBy(desc(requests.requestedAt))
 
-      // Batch fetch all book details for fallback metadata
-      const bookIds = allRequests.map((r) => r.request.bookId)
+      // Batch fetch all book details for fallback metadata (including foreignBookId)
+      const bookIds = Array.from(
+        new Set(
+          allRequests.flatMap((r) => [r.request.bookId, r.request.foreignBookId].filter(Boolean) as string[])
+        )
+      )
       const booksMap = await BookService.getBooksByIds(bookIds)
 
       // Enrich with book details (Dual-Layer: Library > Cache > Fallback)
       const enrichedRequests = allRequests.map(({ request, username, libraryBook }) => {
-        const cachedBook = booksMap.get(request.bookId)
+        const cachedBook = booksMap.get(request.bookId) || (request.foreignBookId ? booksMap.get(request.foreignBookId) : undefined)
+
+        // Resolve cover: cachedBook.coverImage > Readarr bookshelfId fallback
+        let coverImage = cachedBook?.coverImage
+        if ((!coverImage || coverImage === 'null') && request.bookshelfId) {
+          coverImage = `/MediaCover/Books/${request.bookshelfId}/cover.jpeg`
+        }
+        coverImage = formatCoverImageUrl(coverImage)
+
         return {
           ...request,
           bookTitle: libraryBook?.title || cachedBook?.title || 'Unknown Book',
           bookAuthor: libraryBook?.authorName || cachedBook?.author || 'Unknown Author',
-          bookCoverImage: cachedBook?.coverImage, // Cover not in libraryBooks
-          bookPublishedDate: cachedBook?.publishedDate, // Pub date not in libraryBooks
+          bookCoverImage: coverImage,
+          bookPublishedDate: cachedBook?.publishedDate,
           requestedBy: username || 'Unknown User',
         }
       })
@@ -385,6 +427,23 @@ export class RequestService {
       // Perform bulk upsert
       if (mappedData.length > 0) {
         try {
+          const existingLibBooks = await db
+            .select({ foreignBookId: libraryBooks.foreignBookId })
+            .from(libraryBooks)
+
+          const mappedIds = new Set(mappedData.map((d: any) => d.foreignBookId))
+          const staleLibIds = existingLibBooks
+            .filter(b => !mappedIds.has(b.foreignBookId))
+            .map(b => b.foreignBookId)
+
+          if (staleLibIds.length > 0) {
+            const chunkSize = 100
+            for (let i = 0; i < staleLibIds.length; i += chunkSize) {
+              const chunk = staleLibIds.slice(i, i + chunkSize)
+              await db.delete(libraryBooks).where(inArray(libraryBooks.foreignBookId, chunk))
+            }
+          }
+
           await db.insert(libraryBooks)
             .values(mappedData)
             .onConflictDoUpdate({

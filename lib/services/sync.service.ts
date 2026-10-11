@@ -3,6 +3,7 @@ import { eq, and, sql, isNotNull, inArray, not } from 'drizzle-orm'
 import { logger } from '@/lib/utils/logger'
 import { BookshelfService } from './bookshelf.service'
 import type { BookshelfConfig } from '@/types/bookshelf.types'
+import { formatCoverImageUrl } from '@/lib/utils/format-cover-image'
 
 let lastReconciliationTime: number = 0
 const RECONCILIATION_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
@@ -259,8 +260,15 @@ export class SyncService {
              const hasFiles = readarrBook.statistics?.bookFileCount > 0 || readarrBook.hasFile === true
              if (hasFiles && req.status !== 'available' && req.status !== 'Available') {
                 try {
+                   const updateFields: any = {
+                     status: 'available',
+                     completedAt: new Date(),
+                   }
+                   if (req.notes && req.notes.includes('MIMIRR_MANUAL_INTERVENTION_REQUIRED')) {
+                     updateFields.notes = ''
+                   }
                    await db.update(requests)
-                     .set({ status: 'available' as any, completedAt: new Date() })
+                     .set(updateFields)
                      .where(eq(requests.id, req.id))
                    logger.info(`Auto-corrected request ${req.id} status to available via background sync`, {
                      bookshelfId: req.bookshelfId,
@@ -354,6 +362,24 @@ export class SyncService {
               authorName: authorMap.get(book.authorId) || '',
            })
         }
+      }
+
+      // Purge deleted books from libraryBooks that no longer exist in Bookshelf
+      const existingLibBooks = await db
+        .select({ foreignBookId: libraryBooks.foreignBookId })
+        .from(libraryBooks)
+
+      const staleLibIds = existingLibBooks
+        .filter(b => !uniqueLibraryBooks.has(b.foreignBookId))
+        .map(b => b.foreignBookId)
+
+      if (staleLibIds.length > 0) {
+        const chunkSize = 100
+        for (let i = 0; i < staleLibIds.length; i += chunkSize) {
+          const chunk = staleLibIds.slice(i, i + chunkSize)
+          await db.delete(libraryBooks).where(inArray(libraryBooks.foreignBookId, chunk))
+        }
+        logger.info(`Completed LibraryBooks Pruning: Removed ${staleLibIds.length} deleted books from libraryBooks cache.`)
       }
 
       const libraryBooksToUpsert = Array.from(uniqueLibraryBooks.values())
@@ -452,6 +478,18 @@ export class SyncService {
           await logToActivity(warnMsg);
         }
 
+        const allImages = [
+          ...(firstEdition?.images || []),
+          ...(book.images || [])
+        ];
+        const validRemote = allImages.find((img: any) =>
+          img?.remoteUrl && img.remoteUrl !== 'null' && img.remoteUrl.startsWith('http')
+        )?.remoteUrl;
+        const localUrl = allImages.find((img: any) =>
+          img?.url && img.url !== 'null' && img.url !== 'undefined'
+        )?.url;
+        const resolvedCover = validRemote || (localUrl ? formatCoverImageUrl(localUrl) : null);
+
         // Mapping Deep-Sync data
         const deepSyncData = {
           id: foreignId,
@@ -464,7 +502,7 @@ export class SyncService {
           isbn13: firstEdition?.isbn13 || null,
           description: description || null,
           genres: deepBook?.genres ? JSON.stringify(deepBook.genres) : null,
-          coverImage: book.images?.[0]?.remoteUrl || book.images?.[0]?.url || null,
+          coverImage: resolvedCover,
         }
 
         // Insert into cache
@@ -485,12 +523,16 @@ export class SyncService {
         if (legacyRequest) {
           // Backfill: Update the legacy request with the missing bookshelfId
           try {
+            const updateFields: any = {
+              bookshelfId: book.id,
+              foreignBookId: foreignId,
+              status: ghostStatus as any
+            }
+            if (legacyRequest.notes && legacyRequest.notes.includes('MIMIRR_MANUAL_INTERVENTION_REQUIRED')) {
+              updateFields.notes = ''
+            }
             await db.update(requests)
-              .set({
-                bookshelfId: book.id,
-                foreignBookId: foreignId,
-                status: ghostStatus as any
-              })
+              .set(updateFields)
               .where(eq(requests.id, legacyRequest.id));
 
             logger.info('Backfilled legacy request with Readarr bookshelfId', {

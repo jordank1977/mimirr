@@ -4,6 +4,13 @@ import { fetchLibraryWithCache } from './cache';
 import { logger } from '@/lib/utils/logger';
 import { db, libraryBooks } from '@/lib/db';
 import { eq, or, like } from 'drizzle-orm';
+import {
+  getLibraryAuthors,
+  lookupAuthor,
+  addAuthor,
+  refreshAuthor,
+  getAuthorBooks,
+} from './authors';
 
 /**
  * Check if a book already exists in the Bookshelf library
@@ -56,23 +63,61 @@ export async function checkBookInLibrary(
         .limit(1);
 
       if (idMatch.length > 0) {
-        logger.info('Book found in Bookshelf library (ID match)', {
-          foreignBookId,
-          status: idMatch[0].status,
-          bookshelfId: idMatch[0].bookshelfId,
-        });
+        if (config?.url && config?.apiKey && idMatch[0].bookshelfId) {
+          try {
+            const liveBook = await apiGet<any>(config, `/api/v1/book/${idMatch[0].bookshelfId}`)
+            if (liveBook && liveBook.id) {
+              logger.info('Book found in Bookshelf library (ID match)', {
+                foreignBookId,
+                status: idMatch[0].status,
+                bookshelfId: idMatch[0].bookshelfId,
+              })
 
-        return {
-          exists: true,
-          status: idMatch[0].status,
-          bookshelfId: idMatch[0].bookshelfId || undefined,
-        };
+              return {
+                exists: true,
+                status: idMatch[0].status,
+                bookshelfId: idMatch[0].bookshelfId,
+              }
+            }
+          } catch (e: any) {
+            if (e?.message?.includes('404')) {
+              logger.info('Book not found in Bookshelf (404), purging stale entry from libraryBooks cache', {
+                foreignBookId,
+                bookshelfId: idMatch[0].bookshelfId,
+              })
+              await db.delete(libraryBooks).where(eq(libraryBooks.foreignBookId, foreignBookId))
+            } else {
+              logger.info('Book found in Bookshelf library cache (fallback on network error)', {
+                foreignBookId,
+                status: idMatch[0].status,
+                bookshelfId: idMatch[0].bookshelfId,
+              })
+              return {
+                exists: true,
+                status: idMatch[0].status,
+                bookshelfId: idMatch[0].bookshelfId,
+              }
+            }
+          }
+        } else {
+          logger.info('Book found in Bookshelf library (ID match)', {
+            foreignBookId,
+            status: idMatch[0].status,
+            bookshelfId: idMatch[0].bookshelfId,
+          })
+
+          return {
+            exists: true,
+            status: idMatch[0].status,
+            bookshelfId: idMatch[0].bookshelfId || undefined,
+          }
+        }
       }
     }
 
     // 2. Fallback SQL Query by Title and Author
-    const normalizedTitle = bookTitle.toLowerCase().trim();
-    const normalizedAuthor = authorName.toLowerCase().trim();
+    const normalizedTitle = bookTitle.toLowerCase().trim()
+    const normalizedAuthor = authorName.toLowerCase().trim()
 
     // Use a basic SQL like approach to match the title
     // In SQLite, LIKE is case-insensitive
@@ -80,31 +125,65 @@ export async function checkBookInLibrary(
       const fuzzyMatches = await db
         .select()
         .from(libraryBooks)
-        .where(like(libraryBooks.title, `%${normalizedTitle}%`));
+        .where(like(libraryBooks.title, `%${normalizedTitle}%`))
 
       if (fuzzyMatches.length > 0) {
         const exactMatch = fuzzyMatches.find(book => {
-          const titleMatches = book.title?.toLowerCase().trim() === normalizedTitle;
+          const titleMatches = book.title?.toLowerCase().trim() === normalizedTitle
           const authorMatches = book.authorName?.toLowerCase().trim().includes(normalizedAuthor) ||
-                                normalizedAuthor.includes(book.authorName?.toLowerCase().trim() || '');
-          return titleMatches && authorMatches;
-        });
+                                normalizedAuthor.includes(book.authorName?.toLowerCase().trim() || '')
+          return titleMatches && authorMatches
+        })
 
-        const finalMatch = exactMatch || (fuzzyMatches.length === 1 ? fuzzyMatches[0] : null);
+        const finalMatch = exactMatch || (fuzzyMatches.length === 1 ? fuzzyMatches[0] : null)
 
         if (finalMatch) {
-          logger.info('Book found in Bookshelf library (Fuzzy match)', {
-            title: bookTitle,
-            authorName,
-            status: finalMatch.status,
-            bookshelfId: finalMatch.bookshelfId,
-          });
+          if (config?.url && config?.apiKey && finalMatch.bookshelfId) {
+            try {
+              const liveBook = await apiGet<any>(config, `/api/v1/book/${finalMatch.bookshelfId}`)
+              if (liveBook && liveBook.id) {
+                logger.info('Book found in Bookshelf library (Fuzzy match)', {
+                  title: bookTitle,
+                  authorName,
+                  status: finalMatch.status,
+                  bookshelfId: finalMatch.bookshelfId,
+                })
 
-          return {
-            exists: true,
-            status: finalMatch.status,
-            bookshelfId: finalMatch.bookshelfId || undefined,
-          };
+                return {
+                  exists: true,
+                  status: finalMatch.status,
+                  bookshelfId: finalMatch.bookshelfId,
+                }
+              }
+            } catch (e: any) {
+              if (e?.message?.includes('404')) {
+                logger.info('Fuzzy matched book not found in Bookshelf (404), purging stale entry from libraryBooks cache', {
+                  foreignBookId: finalMatch.foreignBookId,
+                  bookshelfId: finalMatch.bookshelfId,
+                })
+                await db.delete(libraryBooks).where(eq(libraryBooks.foreignBookId, finalMatch.foreignBookId))
+              } else {
+                return {
+                  exists: true,
+                  status: finalMatch.status,
+                  bookshelfId: finalMatch.bookshelfId,
+                }
+              }
+            }
+          } else {
+            logger.info('Book found in Bookshelf library (Fuzzy match)', {
+              title: bookTitle,
+              authorName,
+              status: finalMatch.status,
+              bookshelfId: finalMatch.bookshelfId,
+            })
+
+            return {
+              exists: true,
+              status: finalMatch.status,
+              bookshelfId: finalMatch.bookshelfId || undefined,
+            }
+          }
         }
       }
     }
@@ -129,69 +208,9 @@ export async function checkBookInLibrary(
 }
 
 /**
- * Lookup an author in Bookshelf's metadata provider
+ * Re-export lookupAuthor for backward compatibility
  */
-export async function lookupAuthor(
-  config: BookshelfConfig,
-  authorName: string
-): Promise<any[]> {
-  try {
-    const url = `/api/v1/author/lookup?term=${encodeURIComponent(authorName)}`;
-    logger.debug('Looking up author in Bookshelf', { url, authorName });
-
-    const results = await fetchWithTimeout<any[]>(config, url);
-
-    logger.debug('Author lookup results', { count: results.length });
-
-    // Helper function to normalize text for matching (titles, authors)
-    const normalizeText = (text: string): string => {
-      return text
-        .toLowerCase()
-        .split(':')[0] // Remove subtitles
-        .trim()
-        .replace(/[^\w\s]/g, '') // Remove special characters
-        .replace(/\s+/g, ' ') // Normalize whitespace
-    };
-
-    const normalizedSearchName = normalizeText(authorName);
-    const searchWords = normalizedSearchName.split(' ');
-
-    // Filter results to ensure strict author matching
-    // We want to avoid "Sara Ackerman" matching "Sara Holly Ackerman"
-    // So we require that the result contains exactly the same words as the search,
-    // or at least that the search isn't missing any words from the result (or vice-versa for middle names).
-    // Actually, middle names are tricky. If user searched "Sara Ackerman", they probably don't want "Sara Holly Ackerman".
-    const strictResults = results.filter((author: any) => {
-      const normalizedResultName = normalizeText(author.authorName || '');
-      const resultWords = normalizedResultName.split(' ');
-      
-      // Exact match of all words (ignoring order)
-      const wordsInResult = searchWords.every(word => resultWords.includes(word));
-      const wordsInSearch = resultWords.every(word => searchWords.includes(word));
-      
-      return wordsInResult && wordsInSearch;
-    });
-
-    if (strictResults.length > 0) {
-      logger.info('Strict author lookup successful', {
-        originalCount: results.length,
-        strictCount: strictResults.length,
-        bestMatch: strictResults[0].authorName
-      });
-      return strictResults;
-    }
-
-    // If no strict matches, return nothing to prevent wrong author addition
-    logger.warn('No strict author matches found', { 
-      authorName, 
-      foundAuthors: results.map((a: any) => a.authorName).slice(0, 3) 
-    });
-    return [];
-  } catch (error) {
-    logger.error('Failed to lookup author in Bookshelf', { error: error instanceof Error ? error.message : error, authorName });
-    return [];
-  }
-}
+export { lookupAuthor };
 
 /**
  * Search for books using Bookshelf's unified search endpoint
@@ -240,226 +259,471 @@ export async function getRootFolders(config: BookshelfConfig): Promise<any[]> {
 }
 
 /**
- * Add a book to Bookshelf
+ * Set a book to monitored in Bookshelf (Readarr).
+ * Resilient implementation:
+ * 1. Attempts Readarr's dedicated bulk monitoring endpoint: PUT /api/v1/book/monitor ({ bookIds: [targetBook.id], monitored: true })
+ * 2. If that fails, falls back to updating the full book entity via PUT /api/v1/book/{id}
+ */
+async function setBookMonitored(
+  config: BookshelfConfig,
+  targetBook: any,
+  author: any,
+  bookData: {
+    qualityProfileId?: number;
+    rootFolderPath?: string;
+  }
+): Promise<void> {
+  try {
+    logger.info('Setting book to monitored via /api/v1/book/monitor', {
+      bookId: targetBook.id,
+      foreignBookId: targetBook.foreignBookId,
+    });
+    await apiPut(config, '/api/v1/book/monitor', {
+      bookIds: [targetBook.id],
+      monitored: true,
+    });
+    logger.info('Successfully set book to monitored via /api/v1/book/monitor', {
+      bookId: targetBook.id,
+    });
+  } catch (monitorError) {
+    logger.warn('Failed to monitor book via /api/v1/book/monitor, attempting fallback PUT /api/v1/book/:id', {
+      bookId: targetBook.id,
+      error: monitorError instanceof Error ? monitorError.message : monitorError,
+    });
+
+    const updatePayload = {
+      ...targetBook,
+      monitored: true,
+      qualityProfileId: bookData.qualityProfileId || targetBook.qualityProfileId,
+      rootFolderPath: bookData.rootFolderPath || targetBook.rootFolderPath || author?.rootFolderPath,
+      authorId: author?.id || targetBook.authorId,
+      addOptions: { searchForNewBook: true },
+      author: {
+        ...(targetBook.author || author),
+        qualityProfileId: bookData.qualityProfileId || author?.qualityProfileId,
+        metadataProfileId: 1,
+        rootFolderPath: bookData.rootFolderPath || author?.rootFolderPath,
+        monitored: true,
+        monitorNewItems: 'none',
+      },
+      editions: targetBook.editions && targetBook.editions.length > 0
+        ? targetBook.editions.map((ed: any) => ({ ...ed, monitored: true }))
+        : [{
+            foreignEditionId: targetBook.foreignEditionId || '0',
+            monitored: true,
+          }],
+    };
+
+    await apiPut<any>(config, `/api/v1/book/${targetBook.id}`, updatePayload);
+    logger.info('Successfully updated book via PUT /api/v1/book/:id fallback', {
+      bookId: targetBook.id,
+    });
+  }
+}
+
+/**
+ * Attempt to directly add a book to Bookshelf via POST /api/v1/book
+ * using metadata from Bookshelf's unified search.
+ * Bypasses metadata profile minPopularity filters for books not present in the author's general catalogue.
+ */
+async function directAddBookFromSearch(
+  config: BookshelfConfig,
+  authorId: number,
+  targetForeignBookId: string,
+  bookTitle: string,
+  bookAuthor: string
+): Promise<any | null> {
+  try {
+    let searchCandidates: any[] = [];
+    if (targetForeignBookId) {
+      searchCandidates = await searchBooks(config, `work:${targetForeignBookId}`);
+    }
+    if (!searchCandidates || searchCandidates.length === 0) {
+      searchCandidates = await searchBooks(config, `${bookTitle} ${bookAuthor}`);
+    }
+
+    const cleanStr = (str: string) => (str || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const targetClean = cleanStr(bookTitle);
+
+    const candidate = searchCandidates.find((b: any) =>
+      (targetForeignBookId && String(b.foreignBookId) === targetForeignBookId) ||
+      cleanStr(b.title) === targetClean
+    );
+
+    if (!candidate) {
+      logger.warn('directAddBookFromSearch: No matching book candidate found in search', {
+        targetForeignBookId,
+        bookTitle,
+      });
+      return null;
+    }
+
+    const payload = {
+      ...candidate,
+      authorId,
+      monitored: true,
+      addOptions: {
+        searchForNewBook: true,
+      },
+    };
+
+    logger.info('directAddBookFromSearch: Directly adding book via POST /api/v1/book', {
+      title: candidate.title,
+      foreignBookId: candidate.foreignBookId,
+      authorId,
+    });
+
+    const addedBook = await apiPost<any>(config, '/api/v1/book', payload);
+    if (addedBook && addedBook.id) {
+      logger.info('directAddBookFromSearch: Successfully added book via POST /api/v1/book', {
+        bookId: addedBook.id,
+        foreignBookId: addedBook.foreignBookId,
+      });
+      return addedBook;
+    }
+  } catch (err) {
+    logger.warn('directAddBookFromSearch: POST /api/v1/book failed', {
+      error: err instanceof Error ? err.message : err,
+      targetForeignBookId,
+      bookTitle,
+    });
+  }
+  return null;
+}
+
+/**
+ * Add a book to Bookshelf using Author-First orchestration:
+ * - Branch 1: If the author already exists in Readarr, locate the book in their catalogue
+ *   (refreshing if missing), monitor the requested book (PUT), and trigger search.
+ * - Branch 2: If the author does not exist, add the author with all catalogue books unmonitored,
+ *   wait for hydration, monitor the requested book (PUT), and trigger search.
  */
 export async function addBook(
   config: BookshelfConfig,
   bookData: {
-    title: string
-    author: string
-    foreignBookId: string
-    qualityProfileId: number
-    rootFolderPath: string
+    title: string;
+    author: string;
+    foreignBookId: string;
+    foreignAuthorId?: string;
+    qualityProfileId: number;
+    rootFolderPath: string;
   }
-): Promise<{ success: boolean; bookshelfId?: number; foreignBookId?: string; error?: string; requiresManualIntervention?: boolean; message?: string }> {
+): Promise<{
+  success: boolean;
+  bookshelfId?: number;
+  foreignBookId?: string;
+  error?: string;
+  requiresManualIntervention?: boolean;
+  message?: string;
+}> {
   try {
-    const clean = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const clean = (str: string) => (str || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const cleanedTargetAuthor = clean(bookData.author);
-    
-    // Step 1: The Atomic Search & Filter
-    const searchUrl = `/api/v1/search?term=${encodeURIComponent(`${bookData.title} ${bookData.author}`)}`;
-    logger.debug('Step 1: Atomic Search', { searchUrl });
-    
-    const searchResults = await fetchWithTimeout<any[]>(config, searchUrl);
+    const cleanedTargetTitle = clean(bookData.title);
 
-    const match = searchResults.find((result: any) => 
-      result.book && result.book.author && clean(result.book.author.authorName) === cleanedTargetAuthor
+    let targetForeignAuthorId = bookData.foreignAuthorId ? String(bookData.foreignAuthorId).trim() : '';
+    let targetForeignBookId = String(bookData.foreignBookId || '').trim();
+
+    // Step 1: ID Resolution & Search Fallback if foreign IDs are missing
+    if (!targetForeignAuthorId || !targetForeignBookId) {
+      try {
+        const searchUrl = `/api/v1/search?term=${encodeURIComponent(`${bookData.title} ${bookData.author}`)}`;
+        logger.debug('addBook: Resolving IDs via search fallback', { searchUrl });
+        const searchResults = await fetchWithTimeout<any[]>(config, searchUrl);
+
+        const match = searchResults.find((result: any) =>
+          result.book &&
+          result.book.author &&
+          (clean(result.book.author.authorName) === cleanedTargetAuthor ||
+            (targetForeignBookId && String(result.book.foreignBookId) === targetForeignBookId))
+        );
+
+        if (match?.book) {
+          if (!targetForeignBookId && match.book.foreignBookId) {
+            targetForeignBookId = String(match.book.foreignBookId);
+          }
+          if (!targetForeignAuthorId) {
+            targetForeignAuthorId = String(
+              match.book.author?.foreignAuthorId ||
+              match.book.foreignAuthorId ||
+              match.author?.foreignAuthorId ||
+              ''
+            );
+          }
+        }
+      } catch (err) {
+        logger.warn('addBook: ID resolution search fallback encountered error', { error: err });
+      }
+    }
+
+    logger.info('addBook: Checking for existing author in Readarr', {
+      author: bookData.author,
+      targetForeignAuthorId,
+      targetForeignBookId,
+    });
+
+    // Step 2: Check if author already exists in Readarr's library
+    const libraryAuthors = await getLibraryAuthors(config);
+    const existingAuthor = libraryAuthors.find((a: any) =>
+      (targetForeignAuthorId && String(a.foreignAuthorId) === targetForeignAuthorId) ||
+      clean(a.authorName) === cleanedTargetAuthor
     );
 
-    if (!match || !match.book) {
-      return { success: false, error: 'Book not found in Readarr search or author mismatch' };
-    }
+    // =========================================================================
+    // BRANCH 1: Author Already Exists in Readarr
+    // =========================================================================
+    if (existingAuthor) {
+      logger.info('addBook [Branch 1]: Author already exists in Readarr', {
+        authorId: existingAuthor.id,
+        authorName: existingAuthor.authorName,
+        foreignAuthorId: existingAuthor.foreignAuthorId,
+      });
 
-    const basePayload = match.book;
+      // 1. Fetch current author books
+      let authorBooks = await getAuthorBooks(config, existingAuthor.id);
+      let targetBook = authorBooks.find((b: any) =>
+        (targetForeignBookId && String(b.foreignBookId) === targetForeignBookId) ||
+        clean(b.title) === cleanedTargetTitle
+      );
 
-    // Step 2: The Book Presence Check (Editions Fix via PUT)
-    try {
-      const library = await fetchWithTimeout<any[]>(config, '/api/v1/book');
-      const existingBook = library.find((b: any) => String(b.foreignBookId) === String(bookData.foreignBookId));
-
-      if (existingBook) {
-        // Branch A (Exists) - Use PUT to update instead of POST to add
-        // We MUST fetch the full library array for the author to get complete objects
-        // before performing a PUT update to avoid validation/LINQ crashes in Readarr.
-        const authorId = existingBook.authorId || existingBook.author?.id;
-
-        if (authorId) {
-           const authorLibrary = await fetchWithTimeout<any[]>(config, `/api/v1/book?authorId=${authorId}`);
-           const fullExistingBook = authorLibrary.find((b: any) => String(b.id) === String(existingBook.id)) || existingBook;
-
-           logger.info('Updating existing book in Readarr (PUT) to avoid Editions Unique Constraint', {
-             bookId: fullExistingBook.id,
-             foreignBookId: fullExistingBook.foreignBookId
-           });
-
-           const updatePayload = {
-             ...fullExistingBook,
-             monitored: true,
-             qualityProfileId: bookData.qualityProfileId,
-             rootFolderPath: bookData.rootFolderPath || fullExistingBook.rootFolderPath,
-             authorId: fullExistingBook.authorId || 0,
-             addOptions: { searchForNewBook: true },
-             author: {
-               ...(fullExistingBook.author || {}),
-               qualityProfileId: bookData.qualityProfileId,
-               metadataProfileId: 1,
-               rootFolderPath: bookData.rootFolderPath || fullExistingBook.rootFolderPath,
-               monitored: true,
-               monitorNewItems: "none",
-             },
-             editions: fullExistingBook.editions && fullExistingBook.editions.length > 0 ? fullExistingBook.editions : [{
-                 foreignEditionId: fullExistingBook.foreignEditionId || '0',
-                 monitored: true
-             }]
-           };
-
-           await apiPut<any>(config, `/api/v1/book/${fullExistingBook.id}`, updatePayload);
-
-           // Readarr quirk: Updating an existing book via PUT does not automatically trigger search.
-           try {
-               await apiPost(config, '/api/v1/command', { name: 'BookSearch', bookIds: [fullExistingBook.id] });
-           } catch(e) {
-               logger.warn('Failed to dispatch search command after updating book', { error: e, bookId: fullExistingBook.id });
-           }
-        } else {
-           // Fallback if no authorId is available, just monitor it
-           if (existingBook.monitored === false) {
-             await apiPut(config, '/api/v1/book/monitor', { bookIds: [existingBook.id], monitored: true });
-           }
-        }
-
-        return await executeHandshakeAndSearch(existingBook.id, existingBook.authorId);
+      // 2. Fallback if book is not yet catalogued:
+      // First attempt: Direct addition via POST /api/v1/book using search candidate from Bookshelf.
+      // Books below the author's Metadata Profile minPopularity or with unmonitored author settings
+      // are filtered out by Readarr's general catalogue sync, but can be added directly.
+      if (!targetBook) {
+        targetBook = await directAddBookFromSearch(
+          config,
+          existingAuthor.id,
+          targetForeignBookId,
+          bookData.title,
+          bookData.author
+        );
       }
-    } catch (error) {
-      // Continue if library fetch fails
-      logger.warn('Failed to fetch library, continuing with book addition', { error: error instanceof Error ? error.message : error });
-    }
 
-    // Step 3: The Circuit Breaker (Author Deduplication)
-    // Branch B (New Book)
-    try {
-      const authors = await fetchWithTimeout<any[]>(config, '/api/v1/author');
-      const existingAuthor = authors.find((a: any) => clean(a.authorName) === cleanedTargetAuthor);
+      // Second attempt: Trigger RefreshAuthor and poll
+      if (!targetBook) {
+        logger.info('addBook [Branch 1]: Book not found in author catalogue, triggering RefreshAuthor', {
+          authorId: existingAuthor.id,
+          targetForeignBookId,
+          title: bookData.title,
+        });
 
-      if (existingAuthor) {
-        return {
-          success: false,
-          requiresManualIntervention: true,
-          message: "MIMIRR_MANUAL_INTERVENTION_REQUIRED: Author already exists in Readarr. Due to Goodreads metadata conflicts, adding this book automatically will create a duplicate author profile. Please add this book manually."
-        };
-      }
-    } catch (error) {
-      // Continue if authors fetch fails
-      logger.warn('Failed to fetch authors, continuing with book addition', { error: error instanceof Error ? error.message : error });
-    }
-
-    // Step 4: The Atomic POST (Ironclad Locks)
-    const payload = {
-      ...basePayload,
-      monitored: true,
-      authorId: 0,
-      addOptions: { searchForNewBook: false },
-      author: {
-        ...basePayload.author,
-        qualityProfileId: bookData.qualityProfileId,
-        metadataProfileId: 1,
-        monitored: true,
-        monitorNewItems: "none",
-        rootFolderPath: bookData.rootFolderPath,
-        addOptions: {
-          searchForMissingBooks: false,
-          booksToMonitor: [basePayload.foreignBookId]
-        }
-      }
-    };
-
-    const addedBook = await apiPost<any>(config, '/api/v1/book', payload);
-    return await executeHandshakeAndSearch(addedBook.id, addedBook.authorId);
-
-    // Helper function for Steps 5 and 6
-    async function executeHandshakeAndSearch(bookId: number, authorId?: number) {
-      // Step 5: The Status-Aware Polling Handshake
-      let attempts = 0;
-      const maxAttempts = 20;
-      while (attempts < maxAttempts) {
         try {
-          const commands = await fetchWithTimeout<any[]>(config, '/api/v1/command');
-          
-          // Observer: Check for any failure related to our specific book or author
-          const failedCommand = commands.find((cmd: any) => 
-            cmd.status === 'failed' && 
-            (
-              (cmd.bookId && String(cmd.bookId) === String(bookId)) || 
-              (cmd.authorId && authorId && String(cmd.authorId) === String(authorId)) ||
-              (cmd.body && cmd.body.bookIds && cmd.body.bookIds.map(String).includes(String(bookId))) ||
-              (cmd.options && cmd.options.bookIds && cmd.options.bookIds.map(String).includes(String(bookId)))
-            )
-          );
-          
-          if (failedCommand) {
-             return { success: false, error: `Readarr command failed: ${failedCommand.message || failedCommand.name}` };
-          }
-          
-          const isProcessing = commands.some((cmd: any) => 
-            (cmd.status === 'started' || cmd.status === 'queued') &&
-            (
-              (cmd.bookId && String(cmd.bookId) === String(bookId)) || 
-              (cmd.authorId && authorId && String(cmd.authorId) === String(authorId)) ||
-              (cmd.body && cmd.body.bookIds && cmd.body.bookIds.map(String).includes(String(bookId))) ||
-              (cmd.options && cmd.options.bookIds && cmd.options.bookIds.map(String).includes(String(bookId)))
-            )
-          );
-          if (!isProcessing) break;
-        } catch (e) {
-          // Ignore fetch errors during polling
+          await refreshAuthor(config, existingAuthor.id);
+        } catch (refreshErr) {
+          logger.warn('addBook [Branch 1]: RefreshAuthor command dispatch failed', { error: refreshErr });
         }
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        attempts++;
-      }
 
-      // Step 6: The Final Verification & Explicit Search
-      let verificationAttempts = 0;
-      const maxVerificationAttempts = 5;
-      let isBookReady = false;
-      
-      while (verificationAttempts < maxVerificationAttempts) {
-        try {
-          // Readarr API quirk: Fetch the author's library array to get full objects safely
-          const verificationUrl = authorId 
-            ? `/api/v1/book?authorId=${authorId}`
-            : `/api/v1/book/${bookId}`;
-            
-          const responseData = await fetchWithTimeout<any>(config, verificationUrl);
-          const verifiedBook = authorId 
-            ? Array.isArray(responseData) ? responseData.find((b: any) => String(b.id) === String(bookId)) : null
-            : responseData;
-            
-          if (verifiedBook && verifiedBook.editions && verifiedBook.editions.length > 0) {
-            isBookReady = true;
+        // Poll for author catalogue hydration (up to 7 attempts @ 3s interval = ~21s)
+        const maxPollAttempts = 7;
+        for (let poll = 0; poll < maxPollAttempts; poll++) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          authorBooks = await getAuthorBooks(config, existingAuthor.id);
+          targetBook = authorBooks.find((b: any) =>
+            (targetForeignBookId && String(b.foreignBookId) === targetForeignBookId) ||
+            clean(b.title) === cleanedTargetTitle
+          );
+          if (targetBook) {
+            logger.info('addBook [Branch 1]: Book discovered after author refresh', {
+              bookId: targetBook.id,
+              foreignBookId: targetBook.foreignBookId,
+              pollAttempt: poll + 1,
+            });
             break;
           }
-        } catch (e) {
-          // Not found yet, wait and retry
         }
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        verificationAttempts++;
       }
-      
-      // If the book never initializes, we shouldn't throw an error because the book is physically created in Readarr,
-      // but we will log a warning or maybe just proceed. A timeout error here shouldn't mark request as failure.
 
+      if (!targetBook) {
+        logger.error('addBook [Branch 1]: Book not found in author catalogue after refresh', {
+          authorId: existingAuthor.id,
+          targetForeignBookId,
+          title: bookData.title,
+        });
+        return {
+          success: false,
+          error: `Book "${bookData.title}" was not found in author catalogue after metadata refresh in Readarr`,
+        };
+      }
+
+      // 3. Update the book to monitored via dedicated /api/v1/book/monitor (with PUT /api/v1/book/:id fallback)
+      logger.info('addBook [Branch 1]: Setting book to monitored', {
+        bookId: targetBook.id,
+        foreignBookId: targetBook.foreignBookId,
+      });
+
+      await setBookMonitored(config, targetBook, existingAuthor, bookData);
+
+      // 4. Trigger targeted search
       try {
-        await apiPost(config, '/api/v1/command', { name: 'BookSearch', bookIds: [bookId] });
-      } catch (e) {
-        // Ignore search command errors
+        await apiPost(config, '/api/v1/command', {
+          name: 'BookSearch',
+          bookIds: [targetBook.id],
+        });
+        logger.info('addBook [Branch 1]: BookSearch command dispatched', { bookId: targetBook.id });
+      } catch (searchCmdErr) {
+        logger.warn('addBook [Branch 1]: Failed to dispatch BookSearch command', {
+          error: searchCmdErr,
+          bookId: targetBook.id,
+        });
       }
 
-      return { success: true, bookshelfId: bookId, foreignBookId: basePayload.foreignBookId };
+      return {
+        success: true,
+        bookshelfId: targetBook.id,
+        foreignBookId: targetBook.foreignBookId || targetForeignBookId,
+      };
     }
 
+    // =========================================================================
+    // BRANCH 2: Author Does NOT Exist in Readarr
+    // =========================================================================
+    logger.info('addBook [Branch 2]: Author does not exist in Readarr, looking up metadata candidate', {
+      author: bookData.author,
+      targetForeignAuthorId,
+    });
+
+    // 1. Lookup author candidates from Readarr's metadata provider (rreading-glasses)
+    let lookupCandidates: any[] = [];
+    if (targetForeignAuthorId) {
+      lookupCandidates = await lookupAuthor(config, `goodreads:${targetForeignAuthorId}`);
+    }
+    if (!lookupCandidates || lookupCandidates.length === 0) {
+      lookupCandidates = await lookupAuthor(config, bookData.author);
+    }
+
+    let authorCandidate = lookupCandidates.find((a: any) =>
+      (targetForeignAuthorId && String(a.foreignAuthorId) === targetForeignAuthorId) ||
+      clean(a.authorName) === cleanedTargetAuthor
+    );
+
+    if (!authorCandidate && lookupCandidates.length > 0) {
+      authorCandidate = lookupCandidates[0];
+    }
+
+    if (!authorCandidate) {
+      logger.error('addBook [Branch 2]: No author candidate found in Readarr metadata lookup', {
+        author: bookData.author,
+        targetForeignAuthorId,
+      });
+      return {
+        success: false,
+        error: `Author "${bookData.author}" could not be found via Readarr metadata provider`,
+      };
+    }
+
+    // 2. Construct author addition payload with unmonitored catalogue defaults
+    const authorPayload = {
+      ...authorCandidate,
+      rootFolderPath: bookData.rootFolderPath,
+      qualityProfileId: bookData.qualityProfileId,
+      metadataProfileId: authorCandidate.metadataProfileId || 1,
+      monitored: true,
+      monitorNewItems: 'none', // Critical: Future books discovered via RSS/scans NOT monitored
+      addOptions: {
+        monitor: 'none', // Critical: All imported existing books NOT monitored
+        booksToMonitor: [],
+        searchForMissingBooks: false,
+      },
+    };
+
+    logger.info('addBook [Branch 2]: Adding author to Readarr with unmonitored defaults', {
+      authorName: authorPayload.authorName,
+      foreignAuthorId: authorPayload.foreignAuthorId,
+      monitorNewItems: authorPayload.monitorNewItems,
+      monitorOption: authorPayload.addOptions?.monitor,
+    });
+
+    const addedAuthor = await addAuthor(config, authorPayload);
+    if (!addedAuthor || !addedAuthor.id) {
+      logger.error('addBook [Branch 2]: Failed to add author to Readarr', { authorPayload });
+      return { success: false, error: 'Failed to add author to Readarr' };
+    }
+
+    logger.info('addBook [Branch 2]: Author created in Readarr, polling for catalogue import', {
+      authorId: addedAuthor.id,
+      authorName: addedAuthor.authorName,
+    });
+
+    // 3. Poll for author catalogue to be imported (up to 10 attempts @ 3s interval = ~30s)
+    let targetBook: any = null;
+    const maxCataloguePolls = 10;
+    for (let poll = 0; poll < maxCataloguePolls; poll++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const authorBooks = await getAuthorBooks(config, addedAuthor.id);
+      targetBook = authorBooks.find((b: any) =>
+        (targetForeignBookId && String(b.foreignBookId) === targetForeignBookId) ||
+        clean(b.title) === cleanedTargetTitle
+      );
+      if (targetBook) {
+        logger.info('addBook [Branch 2]: Located requested book in newly added author catalogue', {
+          bookId: targetBook.id,
+          foreignBookId: targetBook.foreignBookId,
+          pollAttempt: poll + 1,
+        });
+        break;
+      }
+    }
+
+    // Fallback: If not in author catalogue (e.g. filtered by metadata profile minPopularity), add directly
+    if (!targetBook) {
+      targetBook = await directAddBookFromSearch(
+        config,
+        addedAuthor.id,
+        targetForeignBookId,
+        bookData.title,
+        bookData.author
+      );
+    }
+
+    if (!targetBook) {
+      logger.error('addBook [Branch 2]: Requested book not found in catalogue after adding author', {
+        authorId: addedAuthor.id,
+        targetForeignBookId,
+        title: bookData.title,
+      });
+      return {
+        success: false,
+        error: `Requested book "${bookData.title}" was not found in author catalogue after importing author to Readarr`,
+      };
+    }
+
+    // 4. Update the requested book to monitored via dedicated /api/v1/book/monitor (with PUT /api/v1/book/:id fallback)
+    logger.info('addBook [Branch 2]: Setting requested book to monitored', {
+      bookId: targetBook.id,
+      foreignBookId: targetBook.foreignBookId,
+    });
+
+    await setBookMonitored(config, targetBook, addedAuthor, bookData);
+
+    // 5. Trigger targeted search
+    try {
+      await apiPost(config, '/api/v1/command', {
+        name: 'BookSearch',
+        bookIds: [targetBook.id],
+      });
+      logger.info('addBook [Branch 2]: BookSearch command dispatched', { bookId: targetBook.id });
+    } catch (searchCmdErr) {
+      logger.warn('addBook [Branch 2]: Failed to dispatch BookSearch command', {
+        error: searchCmdErr,
+        bookId: targetBook.id,
+      });
+    }
+
+    return {
+      success: true,
+      bookshelfId: targetBook.id,
+      foreignBookId: targetBook.foreignBookId || targetForeignBookId,
+    };
   } catch (error: any) {
-    if (error.name === 'AbortError') return { success: false, error: 'Bookshelf Connection Timeout' };
-    return { success: false, error: error.message };
+    if (error.name === 'AbortError') {
+      return { success: false, error: 'Bookshelf Connection Timeout' };
+    }
+    logger.error('addBook: Unexpected error occurred', {
+      error: error instanceof Error ? error.message : error,
+      bookData,
+    });
+    return { success: false, error: error.message || 'Unknown error during book addition' };
   }
 }
 

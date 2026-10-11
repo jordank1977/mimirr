@@ -9,6 +9,32 @@ import { RequestStatusBadge } from '@/components/request/request-status-badge'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { BookOpen, CheckCircle, XCircle } from 'lucide-react'
 import type { RequestWithBook } from '@/lib/services/request.service'
+import { formatCoverImageUrl } from '@/lib/utils/format-cover-image'
+
+function AdminRequestCover({ coverImage, title }: { coverImage?: string | null; title?: string | null }) {
+  const [imageError, setImageError] = useState(false)
+  const coverUrl = formatCoverImageUrl(coverImage)
+
+  if (!coverUrl || imageError) {
+    return (
+      <div className="flex items-center justify-center h-full text-foreground-muted">
+        <span className="text-2xl">📚</span>
+      </div>
+    )
+  }
+
+  return (
+    <Image
+      src={coverUrl}
+      alt={title || 'Unknown Book'}
+      fill
+      className="object-cover"
+      sizes="64px"
+      unoptimized={coverUrl.startsWith('/api/mediacover/')}
+      onError={() => setImageError(true)}
+    />
+  )
+}
 
 export default function AllRequestsPage() {
   const [requests, setRequests] = useState<RequestWithBook[]>([])
@@ -323,19 +349,7 @@ export default function AllRequestsPage() {
                 <div className="flex gap-4">
                   {/* Book Cover */}
                   <div className="flex-shrink-0 w-16 h-24 relative bg-background-hover rounded overflow-hidden">
-                    {request.bookCoverImage && request.bookCoverImage !== 'null' && !request.bookCoverImage.startsWith('/') ? (
-                      <Image
-                        src={request.bookCoverImage}
-                        alt={request.bookTitle || 'Unknown Book'}
-                        fill
-                        className="object-cover"
-                        sizes="64px"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-foreground-muted">
-                        <span className="text-2xl">📚</span>
-                      </div>
-                    )}
+                    <AdminRequestCover coverImage={request.bookCoverImage} title={request.bookTitle} />
                   </div>
 
                   {/* Request Details */}

@@ -38,7 +38,20 @@ export async function fetchWithTimeout<T>(
       throw new Error(`Bookshelf API error: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    const text = await response.text();
+    if (!text || text.trim() === '') {
+      return {} as T;
+    }
+
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html') || text.trim().startsWith('<')) {
+        throw new Error('Bookshelf returned an HTML page instead of JSON. Check that your Bookshelf URL is the base server address.');
+      }
+      return text as unknown as T;
+    }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       logger.error('Bookshelf API Request Timed Out', { url, timeout: DEFAULT_TIMEOUT });

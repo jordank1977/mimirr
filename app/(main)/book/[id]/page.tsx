@@ -85,6 +85,8 @@ export default function BookPage({
         body: JSON.stringify({
           bookId: book.id,
           qualityProfileId: selectedProfileId,
+          foreignAuthorId: book.foreignAuthorId,
+          foreignBookId: book.foreignBookId || book.id,
         }),
       })
 

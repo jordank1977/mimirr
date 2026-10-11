@@ -92,12 +92,25 @@ async function getHandler(
               requestStatus = 'Processing'
               mimirrState = 'Processing'
             }
+            if (libraryStatus.bookshelfId && (!book.coverImage || book.coverImage.includes('MediaCoverProxy'))) {
+              book.coverImage = `/MediaCover/Books/${libraryStatus.bookshelfId}/cover.jpeg`
+            }
             // We omit `format` from `checkBookInLibrary` so this will be undefined until lazy-loaded
           }
         } catch (error) {
           // Silently fail - don't block book detail if Bookshelf check fails
           logger.error('Failed to check book in Bookshelf', { bookId: book.id, error: error instanceof Error ? error.message : error })
         }
+      }
+    }
+
+    const isbn = book.isbn13 || book.isbn
+    if (isbn) {
+      if (book.coverImage && book.coverImage.includes('/api/mediacover/') && !book.coverImage.includes('isbn=')) {
+        const sep = book.coverImage.includes('?') ? '&' : '?'
+        book.coverImage = `${book.coverImage}${sep}isbn=${encodeURIComponent(isbn)}`
+      } else if (!book.coverImage) {
+        book.coverImage = `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg?default=false`
       }
     }
 

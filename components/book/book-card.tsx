@@ -1,7 +1,11 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent } from '@/components/ui/card'
 import type { Book } from '@/types/bookinfo'
+import { formatCoverImageUrl } from '@/lib/utils/format-cover-image'
 
 interface BookCardProps {
   book: Book
@@ -25,6 +29,27 @@ const broadGenres = new Set([
 ])
 
 export function BookCard({ book }: BookCardProps) {
+  const [imageError, setImageError] = useState(false)
+  const [fallbackAttempted, setFallbackAttempted] = useState(false)
+  const isbn = book.isbn13 || book.isbn
+  const openLibraryFallback = isbn
+    ? `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg?default=false`
+    : null
+
+  const primaryCoverUrl = formatCoverImageUrl(book.coverImage)
+  const [activeCoverUrl, setActiveCoverUrl] = useState<string | null | undefined>(
+    primaryCoverUrl || openLibraryFallback
+  )
+
+  const handleImageError = () => {
+    if (!fallbackAttempted && openLibraryFallback && activeCoverUrl !== openLibraryFallback) {
+      setFallbackAttempted(true)
+      setActiveCoverUrl(openLibraryFallback)
+    } else {
+      setImageError(true)
+    }
+  }
+
   // Filter out broad genres and show only specific ones
   const specificGenres = book.genres?.filter(g => !broadGenres.has(g)) || []
 
@@ -54,13 +79,15 @@ export function BookCard({ book }: BookCardProps) {
     <Link href={`/book/${book.id}`}>
       <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer overflow-hidden">
         <div className="aspect-[2/3] relative bg-background-hover">
-          {book.coverImage && book.coverImage !== 'null' && !book.coverImage.startsWith('/') ? (
+          {activeCoverUrl && !imageError ? (
             <Image
-              src={book.coverImage}
+              src={activeCoverUrl}
               alt={book.title}
               fill
               className="object-cover"
               sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+              unoptimized={activeCoverUrl.startsWith('/api/mediacover/') || activeCoverUrl.includes('openlibrary.org')}
+              onError={handleImageError}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-foreground-muted">
