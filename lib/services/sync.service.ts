@@ -165,9 +165,25 @@ export class SyncService {
 
       const jobId = newJob[0].id
 
-      // 4. Run Orchestrator
+      // 4. Run Orchestrator (Library Baseline Sync)
       const { ReadarrJobOrchestrator } = await import('./orchestrator.service')
       await ReadarrJobOrchestrator.startJob(jobId, bookshelfConfig)
+
+      // 5. Run Active Request Target Polling (Headless Sniper Poller)
+      try {
+        logger.info('Starting headless request target polling...')
+        const { RequestService } = await import('./request.service')
+        const pollResult = await RequestService.targetPollActiveRequests()
+        logger.info('Headless request target polling completed', {
+          checked: pollResult.checked,
+          updated: pollResult.updated,
+          errors: pollResult.errors
+        })
+      } catch (pollError) {
+        logger.error('Error during headless request target polling', {
+          error: pollError instanceof Error ? pollError.message : pollError
+        })
+      }
 
     } catch (error) {
       logger.error('Error during scheduled background sync', { error: error instanceof Error ? error.message : error })

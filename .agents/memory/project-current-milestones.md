@@ -15,11 +15,16 @@ Updated: 2026-10-12
 * **Direct Import**: Added `directAddBookFromSearch` in `bookshelf/books.ts` allowing uncatalogued / low-popularity books to be imported without author catalogue sync dependencies.
 * **Cache Self-Healing**: Real-time 404 handling in `bookshelf/books.ts` and automated stale record pruning across `sync.service.ts` and `request.service.ts`.
 * **Cleanliness**: Sanitized codebase with 0 PII detected; builds pass cleanly (`npx tsc --noEmit`, `npm run build`).
+* **Production State Replication & Cover Audit**: Automated direct container database export via `.agents-dev/scripts/pull-prod-db.ps1`. Verified 100% cover fidelity with Bookshelf.
+* **Autonomous Headless Polling**: Integrated `RequestService.targetPollActiveRequests()` into `sync.service.ts` and `instrumentation.ts` so requests are polled and `BookSearch` commands dispatched 24/7 headlessly without requiring open browser sessions.
 
 ## Active Target Milestone
-* **Production State Sync & Test Environment Replication**:
-  - Investigate why production Mimirr gets out of sync with production Bookshelf.
-  - Devise a method to safely export/capture production Mimirr database/state and import it into the local test environment to reproduce and diagnose the sync divergence.
+* **Full Audit of Application Logging System**:
+  - Review shared logging architecture in `lib/utils/logger`.
+  - Audit log levels across services, background jobs, and API routes.
+  - Review file-based log rotation and retention under `/app/config/logs`.
+  - Audit client error reporting `/api/logs/client` and admin UI log viewer performance/filtering.
+  - Verify sensitive data masking (passwords, auth tokens, API keys).
 
 **Why:**
 Maintaining a verified milestone baseline allows any agent session to immediately resume work without guessing which features are stable or in-flight.

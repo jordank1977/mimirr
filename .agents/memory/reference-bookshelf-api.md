@@ -21,5 +21,10 @@ Pointers and architecture rules for communicating with Bookshelf (formerly Reada
 * **404 Self-Healing**:
   * `checkBookInLibrary` in `lib/services/bookshelf/books.ts` intercepts 404 responses from Bookshelf.
   * When a book is deleted directly in Bookshelf, `SyncService.reconcileWithReadarr` and `RequestService.syncReadarrLibrary` prune the stale ID from Mimirr's local `libraryBooks` database.
+* **Metadata & Cover Authority**:
+  * Bookshelf is the single source of truth for metadata and covers; Mimirr never runs independent third-party scraping.
+  * Missing covers (`remoteUrl: "null"` or 404 on `/MediaCover`) render the `📚` placeholder by design.
+* **Headless Background Polling**:
+  * `RequestService.targetPollActiveRequests` executes autonomously in `instrumentation.ts` (2-min interval) and `SyncService.runBackgroundSync` (15-min interval) so `BookSearch` commands are dispatched without active browser sessions.
 
 Related: [[reference-metadata-routing]], [[feedback-git-safety]].

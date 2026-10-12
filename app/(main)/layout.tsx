@@ -45,9 +45,9 @@ export default function MainLayout({
     checkAuth()
   }, [router])
 
-  // Automatic Polling for Book Requests
+  // Automatic Polling for Book Requests (Admin client helper)
   useEffect(() => {
-    if (!user) return
+    if (!user || user.role !== 'admin') return
 
     // Function to trigger polling
     const pollRequests = async () => {

@@ -42,5 +42,20 @@ export async function register() {
         })
       }, intervalMs)
     }
+
+    // Initialize frequent lightweight active request poller (every 2 minutes)
+    if (!globalAny.__mimirr_request_poll_interval) {
+      const requestPollIntervalMs = 2 * 60 * 1000 // 2 minutes
+
+      globalAny.__mimirr_request_poll_interval = setInterval(() => {
+        import('./lib/services/request.service').then(({ RequestService }) => {
+          RequestService.targetPollActiveRequests().catch(err => {
+            logger.error('Error in scheduled request target polling', { error: err })
+          })
+        }).catch(err => {
+          logger.error('Failed to import RequestService for background polling', { error: err })
+        })
+      }, requestPollIntervalMs)
+    }
   }
 }
