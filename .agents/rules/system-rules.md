@@ -40,7 +40,32 @@ You have full terminal access. Use it confidently for project work: builds, pack
 ## 5. 🧹 Codebase Cleanliness
 - **No artifacts in the repo:** Never create diagnostic documents, markdown logs, handoff reports, or arbitrary temp files inside the repository. All narrative breakdowns, task summaries, and statuses are communicated directly in the chat interface. 
   - **EXCEPTION (Test Scripts):** When writing and executing temporary test scripts, you must exclusively write to and overwrite a single fixed file at `C:\Vibing\bongo-mimirr\agent-scratch.ts`. Do not use the internal `.gemini/brain` scratch folder.
+- **Agent isolation:** All agent instructions, rules, workflows, and memory files must remain strictly isolated inside `.agents/` or `.agents-dev/`. Never create `AGENTS.md`, `GEMINI.md`, session logs, or markdown documentation inside main project directories (`app/`, `lib/`, `docs/`, `components/`, etc.).
 - **Surgical edits:** Change only what the task requires. Leave unrelated files and configuration untouched.
 
 ## 6. 🏁 Completion Protocol
 * When the task is complete: verify with one-shot commands that exit on their own (`npm run build`, `npx tsc --noEmit`, `npm run lint`), give a concise summary in chat, then STOP execution immediately. Do not suggest further actions, ask follow-up questions, or leave background processes running.
+
+## 7. 🧠 Layered Memory Protocol
+To preserve context across sessions without bloating the active token window, Mimirr maintains a lean, 7-layer memory architecture:
+* **Layer 1: Project Rules** ([system-rules.md](file:///c:/Vibing/bongo-mimirr/.agents/rules/system-rules.md)): Safety non-negotiables, operational protocols, memory rules. Always loaded.
+* **Layer 2: Memory Index** ([memory-index.md](file:///c:/Vibing/bongo-mimirr/.agents/rules/memory-index.md)): Always-loaded single-line pointers grouped by topic. Capped under 200 lines / ~24 KB.
+* **Layer 3: Topic Files** (`.agents/memory/<type>-<slug>.md`): Detailed knowledge loaded on demand. Capped at ~10 KB each.
+* **Layer 4: Subsystem References** (`.agents/memory/reference-<slug>.md`): Architecture and guidelines for specific subsystems, kept strictly within `.agents/memory/`.
+* **Layer 5: Session Logs** (`.agents/memory/session-logs/<slug>-log.md`): Dated history and logs cut from topic files exceeding the 10 KB cap. Search only.
+* **Layer 6: Archive** (`.agents/memory/archive/`): Retired or completed work with a tracking `README.md`. Search only.
+* **Layer 7: Long-Form Docs** (`docs/`, `.agents-dev/research/`): Architectural deep-dives and design specifications. Search only.
+
+### Topic File Conventions
+* **Types & Prefixes**:
+  * `user-<slug>.md`: User role, preferences, working habits.
+  * `feedback-<slug>.md`: Corrections and confirmed patterns. Must include `**Why:**` and `**How to apply:**`.
+  * `project-<slug>.md`: Active milestones and architecture constraints not visible in code. Must include `**Why:**` and `**How to apply:**`.
+  * `reference-<slug>.md`: Pointers to external APIs, systems, and config locations (never raw secret values).
+* **Frontmatter**: Every topic file must include YAML frontmatter with `name`, `description` (one line describing relevance), and `metadata.type`.
+* **Discipline**:
+  * Absolute dates only (e.g. `2026-10-12`, never "last week").
+  * Link related files using `[[slug]]` or relative markdown links.
+  * Search before asking: check memory, rules, and docs before asking the user questions already answered.
+  * Update before adding: refine existing topic files rather than creating duplicates.
+  * Keep secrets and homelab PII out of memory files.

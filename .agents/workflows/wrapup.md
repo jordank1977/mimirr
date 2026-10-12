@@ -15,13 +15,21 @@ description: Run at the end of a chat session to cleanly close out Mimirr work, 
 
 2. **Docs-as-Code:** If this session changed structure, endpoints, env vars, schema, config, or deployment behavior, update the affected files to match: `docs/DEPLOYMENT.md`, `docs/GIT_SETUP.md`, `docs/PRODUCTION-READY.md`, and the affected sections of `README.md` (features, env var table, docker-compose snippet, integration points). If the database schema changed, verify migration/push instructions in `docs/GIT_SETUP.md` still hold. Do not rewrite docs the session did not affect.
 
-3. **Update Active Context:** Open `.agents-dev/active-context.md` (local-only, gitignored). Overwrite the "Current State" section to describe exactly where we are leaving off today. Keep it under one screen of text.
+3. **Memory Audit & Maintenance (.agents/memory/):**
+   - **Inventory Session Knowledge**: Determine what architectural facts, user preferences, API behaviors, traps, or runbooks were discovered or verified this session.
+   - **Update Topic Files**: Update existing topic files under `.agents/memory/` before creating new ones. Enforce naming (`<type>-<slug>.md`), mandatory frontmatter (`name`, `description`, `metadata.type`), and `**Why:**` / `**How to apply:**` lines for feedback/project files. Never store secret values; use absolute dates only (`YYYY-MM-DD`).
+   - **Check 10 KB Cap**: If any topic file exceeds ~10 KB, move older dated history to `.agents/memory/session-logs/<slug>-log.md` and keep only current state, traps, and runbooks in the active topic file.
+   - **Update Memory Index**: Ensure `.agents/rules/memory-index.md` has an accurate pointer for any modified or new topic file. Keep pointers strictly under 150 characters per line (`- [Title](../memory/<file>.md) — hook`), with no raw facts in the index.
+   - **Archive Retired Work**: If a project milestone or feature is finished or retired, move the file to `.agents/memory/archive/`, remove its pointer line from `memory-index.md`, record it in `archive/README.md`, and ensure standing facts were first copied to an active reference file.
 
-4. **Log Progress & Request Direction:** Open `.agents-dev/progress.md` and move today's completed tasks into the historical log. **STOP AND DO NOT FINISH YET.** Evaluate our current session state and present a brief summary to me in the chat.
-   - **If we are stopping mid-task:** Ask me to confirm the exact broken state, error, or unlinked component you should document for next time.
-   - **If a feature was just completed:** Review `README.md`, `docs/`, and the plan notes in `.agents-dev/` (e.g., `plan-*.md`). Propose 2-3 logical next milestones and **ask me** which one you should record as our next target.
-   - **Wait for my reply** before finalizing and saving `.agents-dev/progress.md` and `.agents-dev/active-context.md`.
+4. **Update Active Context:** Open `.agents-dev/active-context.md` (local-only, gitignored). Overwrite the "Current State" section to describe exactly where we are leaving off today. Keep it under one screen of text.
 
-5. **Handoff (git is manual):** Do not run any git commands, not even read-only. List the files changed this session so I can stage/commit/push via the IDE Source Control UI. Note: `.agents-dev/` is gitignored and will not appear in Source Control; repo code and `.agents/` content are tracked and will.
+5. **Log Progress & Request Direction (Interactive Modal):** Open `.agents-dev/progress.md` and move today's completed tasks into the historical log. **STOP AND DO NOT FINISH YET.** Evaluate current session state and use the Antigravity `ask_question` tool to present choices in the interactive chat modal:
+   - **Interactive Modal via `ask_question`:**
+     - **If a feature was just completed:** Review `README.md`, `docs/`, and `.agents-dev/` notes. Formulate 2-4 logical next milestones and invoke `ask_question` with these options as selectable items. Prefix the primary suggestion with "(Recommended)".
+     - **If stopping mid-task:** Invoke `ask_question` asking to confirm the exact broken state or next immediate priority to record.
+   - **Process Response:** Use the user's selected choice from `ask_question` to finalize and save the target in `.agents-dev/active-context.md`, `.agents-dev/progress.md`, and `.agents/memory/project-current-milestones.md`.
 
-**Guardrails:** Session state lives only in `.agents-dev/` — never write `active-context.md` or `progress.md` into `.agents/` or any tracked path. Never read or modify protected files (`.env.local`, `db.sqlite`, `config/db.sqlite`, `config/encryption.key`, `*.key`).
+6. **Handoff (git is manual):** Do not run any git commands, not even read-only. List all files changed this session (including `.agents/memory/` and `.agents/rules/` changes) so I can stage/commit/push via the IDE Source Control UI. Note: `.agents-dev/` is gitignored; repo code and `.agents/` are tracked and will appear in Source Control.
+
+**Guardrails:** Detailed scratch state lives only in `.agents-dev/` — never write `active-context.md` or `progress.md` into `.agents/` or any tracked path. Never read or modify protected files (`.env.local`, `db.sqlite`, `config/db.sqlite`, `config/encryption.key`, `*.key`).
