@@ -2,7 +2,7 @@ export const config = { runtime: 'nodejs' }
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { logger } = await import('./lib/utils/logger')
+    const { logger, setLogLevel } = await import('./lib/utils/logger')
     logger.info('Initializing instrumentation: Node.js runtime detected.')
 
     // Avoid running in Vercel Edge / build phase
@@ -16,6 +16,26 @@ export async function register() {
     const configDir = path.join(process.cwd(), 'config')
     if (!fs.existsSync(configDir)) {
       fs.mkdirSync(configDir, { recursive: true })
+    }
+
+    // Hydrate persisted log_level setting from SQLite on server startup
+    try {
+      const { db, settings } = await import('./lib/db')
+      const { eq } = await import('drizzle-orm')
+      const logLevelSetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'log_level'))
+        .limit(1)
+
+      if (logLevelSetting[0]?.value) {
+        setLogLevel(logLevelSetting[0].value)
+        logger.debug('Hydrated log level from database settings', {
+          level: logLevelSetting[0].value,
+        })
+      }
+    } catch {
+      // Silently ignore if database tables are not yet migrated at boot
     }
 
     // Initialize polling interval (ensure singleton behavior in dev)
@@ -46,6 +66,7 @@ export async function register() {
     // Initialize frequent lightweight active request poller (every 2 minutes)
     if (!globalAny.__mimirr_request_poll_interval) {
       const requestPollIntervalMs = 2 * 60 * 1000 // 2 minutes
+      logger.info('Starting active request target poller. Interval: 2 minutes.')
 
       globalAny.__mimirr_request_poll_interval = setInterval(() => {
         import('./lib/services/request.service').then(({ RequestService }) => {
@@ -57,5 +78,30 @@ export async function register() {
         })
       }, requestPollIntervalMs)
     }
+  }
+}
+
+export async function onRequestError(
+  err: { digest?: string } & Error,
+  request: {
+    path: string
+    method: string
+    headers: { [key: string]: string | string[] | undefined }
+  },
+  context: {
+    routerKind: 'Pages Router' | 'App Router'
+    routePath: string
+    routeType: 'render' | 'route' | 'action' | 'middleware'
+  }
+): Promise<void> {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { logger } = await import('./lib/utils/logger')
+    logger.error('Unhandled Next.js server request error', {
+      err,
+      path: request.path,
+      method: request.method,
+      routePath: context?.routePath,
+      routeType: context?.routeType,
+    })
   }
 }

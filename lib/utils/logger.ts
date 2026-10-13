@@ -3,10 +3,22 @@ import path from 'path'
 import fs from 'fs'
 import { AsyncLocalStorage } from 'async_hooks'
 
-// Request Context for Correlation IDs
-export const requestContext = new AsyncLocalStorage<{ requestId: string }>()
+// Next.js Global Singleton Cache
+// Unconditionally cache both AsyncLocalStorage (requestContext) and the Pino logger
+// on globalThis so instrumentation.ts and all compiled Next.js route bundles share
+// the exact same correlation store and worker thread transports.
+export type LogLevel = 'info' | 'warn' | 'error' | 'debug' | 'trace'
 
-type LogLevel = 'info' | 'warn' | 'error' | 'debug'
+const globalForLogger = globalThis as unknown as {
+  pinoLogger: pino.Logger | undefined
+  requestContext: AsyncLocalStorage<{ requestId: string }> | undefined
+  currentLogLevel: LogLevel | undefined
+}
+
+// Request Context for Correlation IDs
+export const requestContext =
+  globalForLogger.requestContext ?? new AsyncLocalStorage<{ requestId: string }>()
+globalForLogger.requestContext = requestContext
 
 // Configuration
 const IS_PROD = process.env.NODE_ENV === 'production'
@@ -40,6 +52,7 @@ const createLogger = () => {
       warn: () => {},
       error: () => {},
       debug: () => {},
+      trace: () => {},
     } as unknown as pino.Logger
   }
 
@@ -52,6 +65,8 @@ const createLogger = () => {
     // Set base logger level to 'trace' so all logs are passed to the transports.
     // The individual transports will filter according to their own level configuration.
     level: 'trace',
+    // Omit os.hostname() from NDJSON disk logs to prevent leaking host machine PII
+    base: { pid: process.pid },
     redact: {
       paths: redactFields,
       censor: '[REDACTED]'
@@ -90,7 +105,7 @@ const createLogger = () => {
         },
         level: process.env.LOG_LEVEL || 'info', // Console output respects dynamic log level
       },
-      // Stream 1: Standard Log (mimirr.log) - Hardcoded to 'info' level
+      // Stream 1: Standard Log (mimirr.*.log) - Hardcoded to 'info' level
       {
         target: 'pino-roll',
         options: {
@@ -98,15 +113,15 @@ const createLogger = () => {
           extension: '.log',
           size: '20m', // 20 Megabytes
           mkdir: true,
-          limit: { count: 14 }, // Retain 14 files (roughly 14 days if logging 20MB/day, or fewer days if rotating more frequently)
+          limit: { count: 14 }, // Retain 14 files
         },
         level: 'info', // Hardcoded to capture info, warn, error, fatal
       },
-      // Stream 2: Debug Log (mimirr.debug.log) - Hardcoded to capture EVERYTHING
+      // Stream 2: Debug Log (mimirr-debug.*.log) - Hardcoded to capture EVERYTHING
       {
         target: 'pino-roll',
         options: {
-          file: path.join(logDir, 'mimirr.debug'),
+          file: path.join(logDir, 'mimirr-debug'),
           extension: '.log',
           size: '20m', // 20 Megabytes
           mkdir: true,
@@ -120,91 +135,94 @@ const createLogger = () => {
   return pino(pinoConfig, transport);
 }
 
-// Next.js HMR Logger Cache
-// In development, Next.js clears the module cache on every reload, which can lead to
-// logger transport duplication and EventEmitter memory leaks. We cache the logger on globalThis.
-const globalForLogger = globalThis as unknown as { pinoLogger: pino.Logger | undefined }
-
-// Export the active pino logger instance
+// Export the active pino logger instance (unconditionally cached on globalThis)
 const pinoLogger = globalForLogger.pinoLogger ?? createLogger()
+globalForLogger.pinoLogger = pinoLogger
 
-// Export the pino logger instance for dynamic level updates
+// Export the pino logger instance
 export { pinoLogger }
 
-// In development, preserve the logger instance across HMR reloads
-if (process.env.NODE_ENV !== 'production') {
-  globalForLogger.pinoLogger = pinoLogger
-}
-
-// Export wrapper to maintain backward compatibility
-// Global state for dynamic console log level (since we cannot easily
-// change the worker thread transport level without recreation/memory leaks)
-let currentConsoleLevel = process.env.LOG_LEVEL || 'info'
-
-// Helper to check if a level should be logged based on currentConsoleLevel
-const shouldLogToConsole = (level: string) => {
-  return levelValues[level] >= levelValues[currentConsoleLevel]
+function normalizeErrorPayload(data: unknown): Record<string, unknown> | undefined {
+  if (data === undefined || data === null) return undefined
+  if (data instanceof Error) {
+    return {
+      err: {
+        name: data.name,
+        message: data.message,
+        stack: data.stack,
+      },
+    }
+  }
+  if (typeof data === 'object') {
+    const record = { ...(data as Record<string, unknown>) }
+    if (record.error instanceof Error) {
+      const errObj = record.error
+      record.error = {
+        name: errObj.name,
+        message: errObj.message,
+        stack: errObj.stack,
+      }
+    }
+    if (record.err instanceof Error) {
+      const errObj = record.err
+      record.err = {
+        name: errObj.name,
+        message: errObj.message,
+        stack: errObj.stack,
+      }
+    }
+    return record
+  }
+  return { data }
 }
 
 export const logger = {
   info: (message: string, data?: unknown) => {
-    if (data) pinoLogger.info(data, message)
+    if (data !== undefined) pinoLogger.info(data, message)
     else pinoLogger.info(message)
-    // We rely on the transport to log to file, but we can't easily suppress
-    // the console output dynamically if we send it to pinoLogger.
-    // Wait, if we just send it to pinoLogger, the worker thread will process it.
-    // If we want to strictly filter console output dynamically, we would need
-    // a separate logger or custom transport.
-    // Given the constraints and avoiding memory leaks, the best approach is to
-    // just let pinoLogger handle it and accept the worker thread configuration
-    // stays static until restart, OR we can use console.log here dynamically?
-    // The prompt says: "When the Admin changes the Log Level in the UI, it should
-    // strictly update the active `.level` of the console transport".
-    // Since Pino doesn't support this via `pino.transport()` worker threads without
-    // reloading, we just update process.env.LOG_LEVEL as the safest action.
   },
   warn: (message: string, data?: unknown) => {
-    if (data) pinoLogger.warn(data, message)
+    if (data !== undefined) pinoLogger.warn(data, message)
     else pinoLogger.warn(message)
   },
   error: (message: string, data?: unknown) => {
-    if (data instanceof Error) {
-      pinoLogger.error({ err: data }, message)
-    } else if (data) {
-      pinoLogger.error(data, message)
+    const normalized = normalizeErrorPayload(data)
+    if (normalized !== undefined) {
+      pinoLogger.error(normalized, message)
     } else {
       pinoLogger.error(message)
     }
   },
   debug: (message: string, data?: unknown) => {
-    if (data) pinoLogger.debug(data, message)
+    if (data !== undefined) pinoLogger.debug(data, message)
     else pinoLogger.debug(message)
   },
   trace: (message: string, data?: unknown) => {
-    if (data) pinoLogger.trace(data, message)
+    if (data !== undefined) pinoLogger.trace(data, message)
     else pinoLogger.trace(message)
   },
 }
 
+const VALID_LOG_LEVELS = new Set<string>(['trace', 'debug', 'info', 'warn', 'error'])
+
 /**
- * Dynamically update the log level of the active pino logger instance
- * @param level - The new log level ('info', 'warn', 'error', 'debug')
+ * Get the currently configured application log level
  */
-// Helper to map log levels to numerical values
-const levelValues: Record<string, number> = {
-  trace: 10,
-  debug: 20,
-  info: 30,
-  warn: 40,
-  error: 50,
-  fatal: 60,
+export function getLogLevel(): LogLevel {
+  return (
+    globalForLogger.currentLogLevel ||
+    (VALID_LOG_LEVELS.has(process.env.LOG_LEVEL || '')
+      ? (process.env.LOG_LEVEL as LogLevel)
+      : 'info')
+  )
 }
 
+/**
+ * Dynamically update the configured log level
+ * @param level - The new log level ('info', 'warn', 'error', 'debug', 'trace')
+ */
 export function setLogLevel(level: string) {
-  // Update the global process.env so any new instances get it.
-  // Because Next.js uses worker threads for pino transports, we cannot
-  // dynamically update the console transport level at runtime without causing
-  // a memory leak by re-creating the logger.
-  process.env.LOG_LEVEL = level
-  currentConsoleLevel = level
+  const normalized: LogLevel = VALID_LOG_LEVELS.has(level) ? (level as LogLevel) : 'info'
+  process.env.LOG_LEVEL = normalized
+  globalForLogger.currentLogLevel = normalized
 }

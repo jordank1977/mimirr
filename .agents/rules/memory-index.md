@@ -22,5 +22,8 @@ Pointers only: `- [Title](../memory/<file>.md) — hook`. Max 150 chars/line. Ne
 ## API & Security
 - [system-rules.md](./system-rules.md) — ⭐ requireAdmin wrapper, ~8s AbortController timeout, no plaintext credentials
 
+## Logging & Telemetry
+- [reference-logging-architecture.md](../memory/reference-logging-architecture.md) — ⭐ Pino globalThis singleton, AsyncLocalStorage reqId, pino-roll v4
+
 ## Environment & Testing
 - [project-current-milestones.md](../memory/project-current-milestones.md) — Current state, pending milestones, Bookshelf staging environment
