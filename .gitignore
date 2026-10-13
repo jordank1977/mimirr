@@ -5,7 +5,6 @@
 
 # Testing
 /coverage
-agent-scratch.ts
 
 # Next.js Build Artifacts
 /.next/
@@ -44,3 +43,4 @@ npm-debug.log*
 # project). One workflow exception stays local-only — see
 # .git/info/exclude rather than listing it here.
 .agents-dev/
+.agents/workflows/

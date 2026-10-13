@@ -4,7 +4,7 @@ description: Run at the end of a chat session to cleanly close out Mimirr work, 
 
 **Run the End-of-Session Protocol:**
 
-1. **Hygiene Check:** Review all code changes made in this session.
+1. **Hygiene Check:** Review all code changes made in this session using `git status` and `git diff`.
    - Ensure any new mechanics, state changes, calculations, API routes, or background jobs are instrumented with the shared logger (`logger` from `lib/utils/logger`). Never use bare `console.log` — it is stripped from production builds.
    - New background jobs should follow the singleton pattern used by `SyncService` in `instrumentation.ts` (globalThis guard against duplicate intervals).
    - Confirm any new or modified Next.js API routes use the `requireAdmin` / `getServerSession` wrapper pattern, and that no plaintext passwords or API keys are returned to the client.
@@ -26,13 +26,13 @@ description: Run at the end of a chat session to cleanly close out Mimirr work, 
    - **Update Plan Files (`.agents-dev/plan-*.md`)**: Inspect any active implementation plan files in `.agents-dev/`. Check off (`[x]`) all tasks, validation gates, and Master Progress Tracker phases completed during this session. If architectural decisions or task scopes evolved during implementation, update the remaining phase specifications to reflect current reality.
    - **Update Active Context (`.agents-dev/active-context.md`)**: Overwrite the "Current State" section to describe exactly where we are leaving off today (under one screen of text), and ensure any active `.agents-dev/plan-*.md` file and its next pending phase are linked under "Next Target Milestone" and "Key Documents".
 
-5. **Log Progress & Request Direction (Interactive Modal):** Open `.agents-dev/progress.md` and move today's completed tasks into the historical log. **STOP AND DO NOT FINISH YET.** Evaluate current session state and use the Antigravity `ask_question` tool to present choices in the interactive chat modal:
+5. **Log Progress & Rotate (.agents-dev/progress.md):** Open `.agents-dev/progress.md` and move today's completed tasks into the historical log. If `progress.md` exceeds ~15 KB, archive older entries to `.agents-dev/logs/progress-archive.md`. **STOP AND DO NOT FINISH YET.** Evaluate current session state and use the Antigravity `ask_question` tool to present choices in the interactive chat modal:
    - **Interactive Modal via `ask_question`:**
      - **If an active multi-phase plan (`.agents-dev/plan-*.md`) has remaining phases:** Formulate options around the next pending phase(s) in the plan (prefixing the immediate next phase with `(Recommended)`), alongside any alternative priorities.
      - **If a feature/plan was fully completed:** Review `README.md`, `docs/`, and `.agents-dev/` notes. Formulate 2-4 logical next milestones and invoke `ask_question` with these options as selectable items. Prefix the primary suggestion with "(Recommended)".
      - **If stopping mid-task:** Invoke `ask_question` asking to confirm the exact broken state or next immediate priority to record.
    - **Process Response:** Use the user's selected choice from `ask_question` to finalize and save the target in `.agents-dev/active-context.md`, `.agents-dev/progress.md`, `.agents/memory/project-current-milestones.md`, and any relevant `.agents-dev/plan-*.md`.
 
-6. **Handoff (git is manual):** Do not run any git commands, not even read-only. List all files changed this session (including `.agents/memory/`, `.agents/rules/`, and `.agents/workflows/` changes) so I can stage/commit/push via the IDE Source Control UI. Note: `.agents-dev/` is gitignored; repo code and `.agents/` are tracked and will appear in Source Control.
+6. **Handoff (Git commits are manual in IDE):** Run `git status` to print all modified and untracked files. List files changed this session (including `.agents/memory/`, `.agents/rules/`, and `.agents/workflows/` changes) so the developer can review and stage/commit/push via the IDE Source Control UI. Never execute mutating git commands (`commit`, `push`, `reset`, etc.). Note: `.agents-dev/` is gitignored; repo code and `.agents/` are tracked and will appear in Source Control.
 
 **Guardrails:** Detailed scratch state and implementation plans live only in `.agents-dev/` — never write `active-context.md`, `progress.md`, or `plan-*.md` into `.agents/` or any tracked path. Never read or modify protected files (`.env.local`, `db.sqlite`, `config/db.sqlite`, `config/encryption.key`, `*.key`).

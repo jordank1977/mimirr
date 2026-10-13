@@ -5,15 +5,15 @@ metadata:
   type: feedback
 ---
 
-Never execute git commands from the agent shell under any circumstances (including read-only commands like `git status` or `git diff`).
+Never execute mutating git commands (`commit`, `push`, `reset`, `checkout`, `branch`, `merge`, `rebase`, `stash`, `clean`). Read-only git commands (`git status`, `git diff`, `git check-ignore`, `git log -n <count>`) are permitted and encouraged to inspect working tree state and check ignores.
 
 **Why:**
-Git branching, staging, committing, and remote syncing are strictly managed by the repository owner via the Antigravity IDE / VS Code Source Control interface. Automated git commands risk accidental commits of sensitive files or disruptive rebases/merges.
+Git branching, staging, committing, and remote syncing are strictly managed by the repository owner via the Antigravity IDE / VS Code Source Control interface. Automated git write commands risk accidental commits of sensitive files or disruptive rebases/merges. Read-only commands allow rapid, accurate working tree inspection without modifying repository state.
 
 **How to apply:**
-* When inspecting workspace status, inspect the filesystem directly with directory listing tools or ask the user.
-* At the conclusion of a session or task, list all touched files explicitly in chat so the user can review and stage them in the UI.
+* Run read-only git commands (`git status`, `git diff`, `git check-ignore`, `git log -n <count>`) freely to inspect working tree changes, check ignore rules, and report status.
+* All commits and branch operations remain 100% manual for the developer via the IDE UI.
 * Do not leave temporary scripts, logs, or diagnostic markdown files scattered in the repo.
-* Temporary test scripts MUST exclusively overwrite `agent-scratch.ts` at the workspace root.
+* Temporary test scripts MUST exclusively live in and overwrite `.agents-dev/scripts/scratch.ts` (never at the repo root).
 
 Related: [[system-rules]], [[wrapup]].

@@ -7,8 +7,8 @@ trigger: always_on
 Pointers only: `- [Title](../memory/<file>.md) — hook`. Max 150 chars/line. Never store raw facts in this index.
 
 ## Start of Session
-- [system-rules.md](./system-rules.md) — ⚠ Safety non-negotiables: no git commands, protected files, user approval before edits
-- [feedback-git-safety.md](../memory/feedback-git-safety.md) — ⚠ Manual IDE git commits only, single test scratch file (agent-scratch.ts)
+- [system-rules.md](./system-rules.md) — ⚠ Safety non-negotiables: guarded git, protected files, user approval before edits
+- [feedback-git-safety.md](../memory/feedback-git-safety.md) — ⚠ Read-only git permitted, commits manual in IDE, scratch in .agents-dev/scripts/
 
 ## Bookshelf Integration
 - [reference-bookshelf-api.md](../memory/reference-bookshelf-api.md) — ⭐ Bookshelf API v1 endpoints, port 8701 test stack, 404 self-healing, directAddBook
