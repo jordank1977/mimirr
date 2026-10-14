@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { RequestStatusBadge } from './request-status-badge'
@@ -14,12 +15,16 @@ interface RequestCardProps {
 }
 
 export function RequestCard({ request, onDelete }: RequestCardProps) {
+  const router = useRouter()
   const [imageError, setImageError] = useState(false)
   const requestDate = new Date(request.requestedAt).toLocaleDateString()
   const coverUrl = formatCoverImageUrl(request.bookCoverImage)
 
   return (
-    <Card className="overflow-hidden">
+    <Card
+      onClick={() => router.push(`/book/${request.bookId}`)}
+      className="overflow-hidden cursor-pointer hover:shadow-md hover:border-primary/40 transition-all"
+    >
       <CardContent className="p-4">
         <div className="flex gap-4">
           {/* Book Cover */}
@@ -52,7 +57,12 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
                   {request.bookAuthor || 'Unknown Author'}
                 </p>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {request.profileName && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                    {request.profileName}
+                  </span>
+                )}
                 <RequestStatusBadge status={request.status} />
               </div>
             </div>
@@ -96,7 +106,10 @@ export function RequestCard({ request, onDelete }: RequestCardProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => onDelete(request.id)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete(request.id)
+                  }}
                   className="text-red-600 hover:text-red-700"
                 >
                   Cancel Request

@@ -21,4 +21,11 @@ Architectural patterns for search queries and external book metadata handling.
 * **Cache Tolerance**:
   * `isCacheValid` is calibrated to tolerate missing optional publisher metadata to avoid unnecessary repeated lookups for established records.
 
+## Request & Details State Resolution
+* **Dual-ID Request Matching**:
+  * In `app/api/books/[id]/route.ts`, candidate IDs (`id`, `book.foreignBookId`, `foreignId`) match against both `requests.bookId` and `requests.foreignBookId`.
+  * Multi-User / Admin Resolution: Check current user's request first, falling back to any active system request so admins on `/requests/all` see the true request state instead of a blank `Unowned` card.
+* **Bookshelf Library Match**:
+  * Pass `book.foreignBookId || id` to `BookshelfService.checkBookInLibrary`, with local `libraryBooks` SQLite table fallback.
+
 Related: [[reference-bookshelf-api]].

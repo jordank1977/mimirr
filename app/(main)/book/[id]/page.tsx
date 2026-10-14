@@ -51,9 +51,12 @@ export default function BookPage({
         if (profilesResponse.ok) {
           const profilesData = await profilesResponse.json()
           setQualityProfiles(profilesData.profiles || [])
-          // Set default to first profile
+          // Prefer book's existing requested profile if present, else first profile
           if (profilesData.profiles && profilesData.profiles.length > 0) {
-            setSelectedProfileId(profilesData.profiles[0].id)
+            const initialProfileId = bookData.book?.qualityProfileId && profilesData.profiles.some((p: QualityProfile) => p.id === bookData.book.qualityProfileId)
+              ? bookData.book.qualityProfileId
+              : profilesData.profiles[0].id
+            setSelectedProfileId(initialProfileId)
           }
         }
 
@@ -146,7 +149,7 @@ export default function BookPage({
 
     if (!book.requestStatus) return null
 
-    const statusConfig = {
+    const statusConfig: Record<string, { label: string; color: string; message: string }> = {
       pending: {
         label: 'Pending Request',
         color: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-600 dark:text-yellow-400',
@@ -174,9 +177,15 @@ export default function BookPage({
         color: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-400',
         message: 'This book is currently being downloaded and processed.',
       },
+      unreleased: {
+        label: 'Upcoming Release (Monitored)',
+        color: 'bg-primary/10 border-primary/20 text-primary',
+        message: 'This book has been requested and is monitored for when it is released.',
+      },
     }
 
-    return statusConfig[book.requestStatus]
+    const key = book.requestStatus.toLowerCase()
+    return statusConfig[key] || statusConfig[book.requestStatus] || null
   }
 
   const statusInfo = getStatusInfo()

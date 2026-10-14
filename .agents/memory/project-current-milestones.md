@@ -7,9 +7,10 @@ metadata:
 
 # Project Milestones & Current State
 
-Updated: 2026-10-12
+Updated: 2026-10-13
 
 ## Current Verified State
+* **Requests UI Polish & Bookshelf Profile Badges**: Implemented Bookshelf profile badge denotation (Option A) in the top-right header row alongside `RequestStatusBadge` across `/requests` and `/requests/all`. Enabled card click navigation to `/book/[id]` with `e.stopPropagation()` on action buttons. Enforced dual-ID request and library state resolution in `app/api/books/[id]/route.ts` with multi-user / admin active request parity and pre-selected quality profiles on `/book/[id]`.
 * **Layered Memory Architecture**: Implemented 7-layer memory architecture, memory index, topic files, and path-scoped rules adapted from Fronc's Claude setup.
 * **Book ID Search Routing**: Fixed search prefix colons (`work:`, `edition:`) in `readarr.service.ts` to prevent broken encodings.
 * **Direct Import**: Added `directAddBookFromSearch` in `bookshelf/books.ts` allowing uncatalogued / low-popularity books to be imported without author catalogue sync dependencies.

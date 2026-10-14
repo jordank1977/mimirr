@@ -3,6 +3,7 @@ import { logToClient } from "@/lib/utils/client-logger"
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { RequestStatusBadge } from '@/components/request/request-status-badge'
@@ -37,6 +38,7 @@ function AdminRequestCover({ coverImage, title }: { coverImage?: string | null; 
 }
 
 export default function AllRequestsPage() {
+  const router = useRouter()
   const [requests, setRequests] = useState<RequestWithBook[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('pending')
@@ -344,7 +346,11 @@ export default function AllRequestsPage() {
           </div>
         ) : (
           filteredRequests.map((request) => (
-            <Card key={request.id} className="overflow-hidden">
+            <Card
+              key={request.id}
+              onClick={() => router.push(`/book/${request.bookId}`)}
+              className="overflow-hidden cursor-pointer hover:shadow-md hover:border-primary/40 transition-all"
+            >
               <CardContent className="p-4">
                 <div className="flex gap-4">
                   {/* Book Cover */}
@@ -363,7 +369,14 @@ export default function AllRequestsPage() {
                           {request.bookAuthor || 'Unknown Author'}
                         </p>
                       </div>
-                      <RequestStatusBadge status={request.status} />
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {request.profileName && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                            {request.profileName}
+                          </span>
+                        )}
+                        <RequestStatusBadge status={request.status} />
+                      </div>
                     </div>
 
                     <div className="mt-2 space-y-1 text-xs text-foreground-muted">
@@ -402,7 +415,10 @@ export default function AllRequestsPage() {
                         <Button
                           variant="default"
                           size="sm"
-                          onClick={() => handleApprove(request.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleApprove(request.id)
+                          }}
                           disabled={approvingId === request.id}
                         >
                           {approvingId === request.id ? (request.status === 'error' ? 'Retrying...' : 'Approving...') : (request.status === 'error' ? 'Retry Import' : 'Approve')}
@@ -410,7 +426,10 @@ export default function AllRequestsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDecline(request.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDecline(request.id)
+                          }}
                           disabled={approvingId === request.id}
                         >
                           Decline
@@ -432,7 +451,10 @@ export default function AllRequestsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDelete(request.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(request.id)
+                          }}
                           className="text-red-600 hover:text-red-700"
                         >
                           Delete

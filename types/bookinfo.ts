@@ -91,8 +91,9 @@ export interface Book {
   genres: string[]
   metadata?: any
   mimirrState?: 'Unowned' | 'Requested' | 'Processing' | 'Available' | 'Unreleased'
-  requestStatus?: 'pending' | 'approved' | 'declined' | 'available' | 'processing'
+  requestStatus?: 'pending' | 'approved' | 'declined' | 'available' | 'processing' | 'unreleased' | string
   requestId?: number
+  qualityProfileId?: number
   availableFormat?: string
   foreignBookId?: string
   foreignAuthorId?: string

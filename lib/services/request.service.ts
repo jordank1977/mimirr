@@ -1,4 +1,4 @@
-import { db, requests, users, settings, libraryBooks, bookCache, type Request, type NewRequest } from '@/lib/db'
+import { db, requests, users, settings, libraryBooks, bookCache, qualityProfileConfigs, type Request, type NewRequest } from '@/lib/db'
 import { eq, and, desc, isNotNull, lt, sql, or, inArray } from 'drizzle-orm'
 import { logger } from '@/lib/utils/logger'
 import { BookService } from './book.service'
@@ -12,6 +12,7 @@ export interface RequestWithBook extends Request {
   bookCoverImage?: string
   bookPublishedDate?: string
   requestedBy?: string
+  profileName?: string
 }
 
 export class RequestService {
@@ -127,9 +128,14 @@ export class RequestService {
           request: requests,
           username: users.username,
           libraryBook: libraryBooks,
+          profileName: qualityProfileConfigs.profileName,
         })
         .from(requests)
         .leftJoin(users, eq(requests.userId, users.id))
+        .leftJoin(
+          qualityProfileConfigs,
+          eq(requests.qualityProfileId, qualityProfileConfigs.profileId)
+        )
         .leftJoin(
           libraryBooks,
           or(
@@ -149,7 +155,7 @@ export class RequestService {
       const booksMap = await BookService.getBooksByIds(bookIds)
 
       // Enrich with book details (Dual-Layer: Library > Cache > Fallback)
-      const enrichedRequests = userRequests.map(({ request, username, libraryBook }) => {
+      const enrichedRequests = userRequests.map(({ request, username, libraryBook, profileName }) => {
         const cachedBook = booksMap.get(request.bookId) || (request.foreignBookId ? booksMap.get(request.foreignBookId) : undefined)
 
         // Resolve cover: cachedBook.coverImage > Readarr bookshelfId fallback
@@ -166,6 +172,7 @@ export class RequestService {
           bookCoverImage: coverImage,
           bookPublishedDate: cachedBook?.publishedDate,
           requestedBy: username || 'Unknown User',
+          profileName: profileName || (request.qualityProfileId ? `Profile #${request.qualityProfileId}` : undefined),
         }
       })
 
@@ -186,9 +193,14 @@ export class RequestService {
           request: requests,
           username: users.username,
           libraryBook: libraryBooks,
+          profileName: qualityProfileConfigs.profileName,
         })
         .from(requests)
         .leftJoin(users, eq(requests.userId, users.id))
+        .leftJoin(
+          qualityProfileConfigs,
+          eq(requests.qualityProfileId, qualityProfileConfigs.profileId)
+        )
         .leftJoin(
           libraryBooks,
           or(
@@ -207,7 +219,7 @@ export class RequestService {
       const booksMap = await BookService.getBooksByIds(bookIds)
 
       // Enrich with book details (Dual-Layer: Library > Cache > Fallback)
-      const enrichedRequests = allRequests.map(({ request, username, libraryBook }) => {
+      const enrichedRequests = allRequests.map(({ request, username, libraryBook, profileName }) => {
         const cachedBook = booksMap.get(request.bookId) || (request.foreignBookId ? booksMap.get(request.foreignBookId) : undefined)
 
         // Resolve cover: cachedBook.coverImage > Readarr bookshelfId fallback
@@ -224,6 +236,7 @@ export class RequestService {
           bookCoverImage: coverImage,
           bookPublishedDate: cachedBook?.publishedDate,
           requestedBy: username || 'Unknown User',
+          profileName: profileName || (request.qualityProfileId ? `Profile #${request.qualityProfileId}` : undefined),
         }
       })
 
