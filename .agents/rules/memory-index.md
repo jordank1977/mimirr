@@ -6,8 +6,8 @@ trigger: always_on
 
 Pointers only: `- [Title](../memory/<file>.md) — hook`. Max 150 chars/line. Never store raw facts in this index.
 
-## Start of Session
-- [system-rules.md](./system-rules.md) — ⚠ Safety non-negotiables: guarded git, protected files, user approval before edits
+## Start of Session & Governance
+- [system-rules.md](./system-rules.md) — ⚠ Safety non-negotiables: guarded git, protected files, sensor integrity, user approval
 - [feedback-git-safety.md](../memory/feedback-git-safety.md) — ⚠ Read-only git permitted, commits manual in IDE, scratch in .agents-dev/scripts/
 
 ## Bookshelf Integration
@@ -27,3 +27,9 @@ Pointers only: `- [Title](../memory/<file>.md) — hook`. Max 150 chars/line. Ne
 
 ## Environment & Testing
 - [project-current-milestones.md](../memory/project-current-milestones.md) — Current state, pending milestones, Bookshelf staging environment
+
+## Active Developer Context & Plans (.agents-dev/)
+- [active-context.md](../../.agents-dev/active-context.md) — ⚡ Current session state, active target milestone, key documents
+- [progress.md](../../.agents-dev/progress.md) — ⚡ Session history, active milestone tracking, completed phase logs
+- [plan-logging-system-overhaul.md](../../.agents-dev/plan-logging-system-overhaul.md) — 📋 6-phase logging overhaul (Phases 2 & 3 in progress)
+- [plan-author-first-book-addition.md](../../.agents-dev/plan-author-first-book-addition.md) — 📋 Author-first book addition feature design & plan

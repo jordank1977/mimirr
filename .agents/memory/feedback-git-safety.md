@@ -14,6 +14,6 @@ Git branching, staging, committing, and remote syncing are strictly managed by t
 * Run read-only git commands (`git status`, `git diff`, `git check-ignore`, `git log -n <count>`) freely to inspect working tree changes, check ignore rules, and report status.
 * All commits and branch operations remain 100% manual for the developer via the IDE UI.
 * Do not leave temporary scripts, logs, or diagnostic markdown files scattered in the repo.
-* Temporary test scripts MUST exclusively live in and overwrite `.agents-dev/scripts/scratch.ts` (never at the repo root).
+* Temporary test scripts MUST exclusively live in and overwrite `.agents-dev/scripts/scratch.ts` or `agent-scratch.ts` (repo root, ensuring root test scripts are cleaned up after execution).
 
 Related: [[system-rules]], [[wrapup]].
