@@ -39,7 +39,6 @@ npm-debug.log*
 # -------------------------------------------------------------------
 # AI / Agent Context
 # -------------------------------------------------------------------
-# .agents/ IS tracked and pushed (rules + workflows are part of the
-# project). One workflow exception stays local-only — see
-# .git/info/exclude rather than listing it here.
+# .agents/ IS tracked (governance as code). Ephemeral state & root scratch stay local:
 .agents-dev/
+agent-scratch.*

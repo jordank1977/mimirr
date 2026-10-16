@@ -7,10 +7,10 @@ metadata:
 
 # Project Milestones & Current State
 
-Updated: 2026-10-14
+Updated: 2026-10-16
 
 ## Current Verified State
-* **Governance Harness Upgrade**: Upgraded repository governance harness to align with 2026 Harness Engineering, Anti-Reward Hacking (sensor immutability, no compiler bypasses), Cognitive Debt & Legibility guardrails, a 3-Phase on-demand audit protocol in `/SANITIZE-codebase`, Harness Ratchet Check in `/wrapup`, and `.agents-dev/` context/plan indexing in `memory-index.md`.
+* **Governance Harness & Skills Migration**: Upgraded repository governance harness to align with 2026 Harness Engineering, Anti-Reward Hacking (sensor immutability, no compiler bypasses), and Cognitive Debt guardrails. Fully migrated legacy `.agents/workflows/` to modular Antigravity Workspace Skills in `.agents/skills/` (`/wrapup`, `/sanitize-codebase`, `/setup-agent-governance`) with progressive disclosure, zero startup token bloat, and `.agents-dev/` context/plan indexing in `memory-index.md`.
 * **Requests UI Polish & Bookshelf Profile Badges**: Implemented Bookshelf profile badge denotation (Option A) in the top-right header row alongside `RequestStatusBadge` across `/requests` and `/requests/all`. Enabled card click navigation to `/book/[id]` with `e.stopPropagation()` on action buttons. Enforced dual-ID request and library state resolution in `app/api/books/[id]/route.ts` with multi-user / admin active request parity and pre-selected quality profiles on `/book/[id]`.
 * **Layered Memory Architecture**: Implemented 7-layer memory architecture, memory index, topic files, and path-scoped rules adapted from Fronc's Claude setup.
 * **Book ID Search Routing**: Fixed search prefix colons (`work:`, `edition:`) in `readarr.service.ts` to prevent broken encodings.
@@ -19,15 +19,12 @@ Updated: 2026-10-14
 * **Cleanliness**: Sanitized codebase with 0 PII detected; builds pass cleanly (`npx tsc --noEmit`, `npm run build`).
 * **Production State Replication & Cover Audit**: Automated direct container database export via `.agents-dev/scripts/pull-prod-db.ps1`. Verified 100% cover fidelity with Bookshelf.
 * **Autonomous Headless Polling**: Integrated `RequestService.targetPollActiveRequests()` into `sync.service.ts` and `instrumentation.ts` so requests are polled and `BookSearch` commands dispatched 24/7 headlessly without requiring open browser sessions.
-* **Logging System Overhaul (Phase 1/6 Complete)**: Completed full end-to-end logging audit and authored 6-phase plan (`.agents-dev/plan-logging-system-overhaul.md`). Implemented Phase 1 in `lib/utils/logger.ts` and `instrumentation.ts`: unconditional `globalThis` caching for `requestContext` (`AsyncLocalStorage`) and `pinoLogger` (restoring 100% `reqId` correlation IDs), stripped `os.hostname()` PII via `base: { pid }`, fixed `pino-roll` v4 debug stream naming (`mimirr-debug.1.log`), normalized `Error` objects in `logger.error`, hydrated saved `log_level` from SQLite at startup, and wired Next.js 15 `onRequestError`.
+* **Logging System Overhaul (Phase 1–6 Complete, 2026-10-15)**: Full 6-phase overhaul implemented and verified across `lib/utils/logger.ts`, `instrumentation.ts`, `lib/middleware/logging.middleware.ts`, `app/api/logs/**`, `app/(main)/settings/logs/page.tsx`, and telemetry ingest. 100% `reqId` fidelity across route bundles, `base: { pid }` hostname PII removal, multi-depth fast-redact, `sanitizeLogData` query parameter secret masking, Bookshelf `hasApiKey` masking, self-pollution suppression, bounded client telemetry, streaming $O(1)$ ring buffer log viewer with live search/filter UI, and verified Next.js 15 production build.
 
 ## Active Target Milestone
-* **Application Logging System Overhaul — Phases 2 & 3** (`.agents-dev/plan-logging-system-overhaul.md`):
-  - **Phase 2 (Next)**: Expand `redactFields` wildcards and add URL query-secret sanitizer (`?apikey=[REDACTED]`) in `lib/utils/logger.ts`, scrub `targetUrl` in `app/api/mediacover/[...path]/route.ts`, and mask plaintext `apiKey` in `GET /api/settings/bookshelf` + UI (`hasApiKey` pattern).
-  - **Phase 3 (Next)**: Prevent `/api/logs*` self-pollution in `withLogging` and tune noisy polling log levels (`INFO` -> `DEBUG`).
-  - **Phase 4 (Queued)**: Harden `POST /api/logs/client` with Zod validation, payload bounds, and `clientUrl`.
-  - **Phase 5 (Queued)**: Upgrade `GET /api/logs/view` with streaming ring buffer (`?tail=500`, `?level=`, `?search=`) and Admin UI toolbar controls.
-  - **Phase 6 (Queued)**: End-to-end verification and production build sign-off.
+* **Author-First Book Addition — Phase 5 of 5 Pending** ([`.agents-dev/plans/plan-author-first-book-addition.md`](../../.agents-dev/plans/plan-author-first-book-addition.md)):
+  - Phases 1–4 (metadata propagation, Readarr author services, `BooksAPI.addBook` orchestration, approval route & baseline sync) are complete; **Phase 5 (End-to-End Verification & Build Validation)** is next.
+* **Backlog**: Encrypt `bookshelf_api_key` at rest ([`.agents-dev/plans/archive/plan-logging-system-overhaul.md`](../../.agents-dev/plans/archive/plan-logging-system-overhaul.md) §6).
 
 **Why:**
 Maintaining a verified milestone baseline allows any agent session to immediately resume work without guessing which features are stable or in-flight.

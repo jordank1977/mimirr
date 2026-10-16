@@ -8,9 +8,9 @@ trigger: always_on
 
 ## 1. 🎯 Scope & Authorizations
 * **Full development:** Implementing features, fixing bugs, refactoring, and updating dependencies are all in scope, directly in this repo.
-* **Rule & workflow files:** Do NOT modify `.agents/rules/system-rules.md` or files under `.agents/workflows/` unless explicitly asked.
+* **Rule & skill files:** Do NOT modify `.agents/rules/system-rules.md` or files under `.agents/skills/` unless explicitly asked.
   - **Exemption:** The agent is explicitly authorized and expected to create and update memory topic files in `.agents/memory/` and update pointers in `.agents/rules/memory-index.md` in real time.
-* **Workflows:** If workflow files exist in `.agents/workflows/`, follow them ONLY when the user explicitly invokes them. Never run workflows on your own initiative. Workflow files in `.agents/workflows/` must strictly remain under 12,000 characters in body text (Antigravity platform constraint).
+* **Skills (Operational Workflows):** Operational runbooks live in `.agents/skills/<name>/SKILL.md` (`wrapup`, `sanitize-codebase`, `setup-agent-governance`). Follow mutating or session-closing skills ONLY when the user explicitly invokes them (e.g., `/wrapup`, `/sanitize-codebase`). Never run them on your own initiative.
 * **External Projects:** Being that this project communicates with the external application "Bookshelf (formerly Readarr)", it may be useful to search for answers (only if necessary) there. The correct project is located at https://github.com/pennydreadful/bookshelf.
 * **External Bookshelf:** A dedicated Bookshelf testing stack configured via environment variables in `.env.local` is used for testing local Mimirr changes.
 
@@ -25,17 +25,18 @@ At the start of a session or after a context reset:
 2. Run `git status` to verify working tree baseline.
 3. Load only task-relevant topic files from `.agents/memory/`.
 
-## 4. 💻 Terminal — Full Access, Guarded (CRITICAL)
-You have full terminal access. Use it confidently for project work: builds, package installs, tests, file operations, scaffolding, code generation, and tooling. The guardrails below are the only limits.
-* **Shell:** The default shell is `cmd.exe`. When PowerShell semantics are needed, wrap the call (e.g., `powershell -Command "..."`). Write commands that are valid for the shell you are in.
+## 4. 💻 Terminal, Sandbox & Supply-Chain Guardrails (CRITICAL)
+You have full terminal access. Use it confidently for project work: builds, tests, file operations, scaffolding, code generation, and tooling. The guardrails below are the only limits.
+* **Native Shell & Prefix-Matching:** The active harness shell on Windows is `pwsh` (PowerShell). Write commands directly for `pwsh`; avoid wrapping commands in `powershell -Command "..."`, `eval`, `env`, or `$(...)` command substitutions, which break prefix-matching auto-approvals.
+* **Sandbox Execution Protocol:** Attempt commands inside the terminal sandbox first (`BypassSandbox: false`), while respecting documented `BypassSandbox: true` exceptions in `.agents/memory/feedback-sandbox-verification.md` (such as `npm run build`).
 * **Project boundary:** Work freely inside `C:\Vibing\bongo-mimirr`. ANY create/modify/delete operation outside this directory requires explicit user approval first — including other folders under `C:\Vibing\`, temp/user-profile locations, and other repositories.
 * **System integrity — never touch:** Registry, machine-wide environment variables, Windows services, drivers, scheduled tasks, firewall rules, system files, and disk-level tools (`format`, `diskpart`, `cipher /w`). If a task seems to require one, stop, explain exactly why, and get explicit user confirmation before proceeding.
 * **Protected files:** Never delete, overwrite, or move `.env.local`, `dbs.sqlite`, any `*.sqlite`/`*.db` file, or anything inside `.git/` (see §2 and §5).
 * **Irreversible actions:** For destructive operations that cannot be undone (bulk deletes, overwrites without backup), state exactly what will be removed or replaced and get user confirmation before executing — even inside the project.
 * **No collateral damage:** Do not kill processes, stop services, or modify anything unrelated to the current task.
 * **No exfiltration:** Never upload or transmit project code, secrets, or data to an external service (webhooks, paste sites, `curl` POSTs, file shares) without explicit user instruction.
-* **Installs:** Prefer project-local installs (`npm install`). Ask before global installs (`npm install -g`) or anything that alters the machine beyond this project.
-* **Long-running processes:** Dev servers, watchers, and other long-running processes are permitted when a task genuinely requires them — but prefer one-shot verification commands for validation, and never leave a process running after the task ends (see §7).
+* **Supply-Chain & Lockfile Gate:** Never install new packages or mutate `package.json` / `package-lock.json` during feature or verification work without explicit user approval. When approved, prefer project-local installs (`npm install`) and ask before global installs (`npm install -g`).
+* **Long-running processes:** Dev servers, watchers, and other long-running processes are permitted when a task genuinely requires them — but prefer one-shot verification commands for validation, and never leave a process running after the task ends (see §9).
 
 ## 5. 🛡️ Security & Data Directives
 * **API Routes:** Every Next.js API route includes Mimirr's standard authentication wrappers (`requireAdmin` or `getServerSession`).
@@ -54,21 +55,21 @@ You have full terminal access. Use it confidently for project work: builds, pack
 ## 8. 🧹 Codebase Cleanliness
 - **No artifacts in the repo:** Never create diagnostic documents, markdown logs, handoff reports, or arbitrary temp files inside the repository. All narrative breakdowns, task summaries, and statuses are communicated directly in the chat interface. 
   - **EXCEPTION (Test Scripts):** When writing and executing temporary test scripts, you must exclusively write to and overwrite `.agents-dev/scripts/scratch.ts` or `C:\Vibing\bongo-mimirr\agent-scratch.ts` (never leave diagnostic scripts scattered across the repo, and remove root test files after execution). Do not use the internal `.gemini/brain` scratch folder.
-- **Agent isolation:** All agent instructions, rules, workflows, and memory files must remain strictly isolated inside `.agents/` or `.agents-dev/`. Never create `AGENTS.md`, `GEMINI.md`, session logs, or markdown documentation inside main project directories (`app/`, `lib/`, `docs/`, `components/`, etc.).
+- **Agent isolation:** All agent instructions, rules, skills, and memory files must remain strictly isolated inside `.agents/` or `.agents-dev/`. Never create `AGENTS.md`, `GEMINI.md`, session logs, or markdown documentation inside main project directories (`app/`, `lib/`, `docs/`, `components/`, etc.).
 - **Surgical edits:** Change only what the task requires. Leave unrelated files and configuration untouched.
 
 ## 9. 🏁 Completion Protocol
-* When the task is complete: verify with one-shot commands that exit on their own (`npm run build`, `npx tsc --noEmit`, `npm run lint`), give a concise summary in chat, then STOP execution immediately. Do not suggest further actions, ask follow-up questions, or leave background processes running.
+* When the task is complete: verify with one-shot commands that exit on their own following `.agents/memory/feedback-sandbox-verification.md` (`npx tsc --noEmit` sandboxed as the fast type gate, followed by `npm run build` with `BypassSandbox: true` for full compile/lint/type validation; do not run standalone `npm run lint` sandboxed), give a concise summary in chat, then STOP execution immediately. Do not suggest further actions, ask follow-up questions, or leave background processes running.
 
 ## 10. 🧠 Layered Memory Protocol
 To preserve context across sessions without bloating the active token window, Mimirr maintains a lean, 7-layer memory architecture:
-* **Layer 1: Project Rules** ([system-rules.md](file:///c:/Vibing/bongo-mimirr/.agents/rules/system-rules.md)): Safety non-negotiables, operational protocols, memory rules. Always loaded.
-* **Layer 2: Memory Index** ([memory-index.md](file:///c:/Vibing/bongo-mimirr/.agents/rules/memory-index.md)): Always-loaded single-line pointers grouped by topic. Capped under 200 lines / ~24 KB.
-* **Layer 3: Topic Files** (`.agents/memory/<type>-<slug>.md`): Detailed knowledge loaded on demand. Capped at ~10 KB each.
-* **Layer 4: Subsystem References** (`.agents/memory/reference-<slug>.md`): Architecture and guidelines for specific subsystems, kept strictly within `.agents/memory/`.
+* **Layer 1: Project Rules** ([system-rules.md](./system-rules.md)): Safety non-negotiables, operational protocols, memory rules. Always loaded (`< 24 KB`).
+* **Layer 2: Memory Index** ([memory-index.md](./memory-index.md)): Always-loaded single-line pointers grouped by topic. Capped under 200 lines / ~24 KB.
+* **Layer 3: Topic Files** (`.agents/memory/<type>-<slug>.md`): Detailed knowledge and subsystem references (`user-`, `feedback-`, `project-`, `reference-`) loaded on demand. Capped at ~10 KB each.
+* **Layer 4: Conditional Rules & Modular Skills** (`.agents/rules/<domain>.md` with `trigger: model_decision` or path-scoped rules, plus `.agents/skills/<name>/SKILL.md`): Domain guidelines and procedural skills loaded via progressive disclosure only when relevant or invoked, costing 0 body tokens otherwise.
 * **Layer 5: Session Logs** (`.agents/memory/session-logs/<slug>-log.md`): Dated history and logs cut from topic files exceeding the 10 KB cap. Search only.
 * **Layer 6: Archive** (`.agents/memory/archive/`): Retired or completed work with a tracking `README.md`. Search only.
-* **Layer 7: Long-Form Docs** (`docs/`, `.agents-dev/research/`): Architectural deep-dives and design specifications. Search only.
+* **Layer 7: Long-Form Docs & Plans** (`docs/`, `.agents-dev/plans/`, `.agents-dev/research/`): Architectural deep-dives, implementation plans, and design specifications. Search only.
 
 ### Topic File Conventions
 * **Types & Prefixes**:
