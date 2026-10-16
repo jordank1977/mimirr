@@ -123,6 +123,8 @@ export default function BookshelfSettingsPage() {
   const [profilesLoading, setProfilesLoading] = useState(false)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   const [showApiKeyHelp, setShowApiKeyHelp] = useState(false)
+  // Whether an API key is already stored server-side (the plaintext key is never sent to the client)
+  const [hasApiKey, setHasApiKey] = useState(false)
 
   // Sync Job State
   const [syncJob, setSyncJob] = useState<any>(null)
@@ -139,7 +141,8 @@ export default function BookshelfSettingsPage() {
   }, [])
 
   const hasUnsavedChanges = formData.url !== initialFormData.url || formData.apiKey !== initialFormData.apiKey
-  const isConfigured = Boolean(initialFormData.url && initialFormData.apiKey)
+  const isConfigured = Boolean(initialFormData.url && hasApiKey)
+  const hasUsableApiKey = Boolean(formData.apiKey || hasApiKey)
 
   // Reset test status when form data changes
   useEffect(() => {
@@ -244,10 +247,11 @@ export default function BookshelfSettingsPage() {
       if (response.ok) {
         const settings = {
           url: data.url || '',
-          apiKey: data.apiKey || '',
+          apiKey: '', // Plaintext key is never returned; blank means "keep stored key"
         }
         setFormData(settings)
         setInitialFormData(settings)
+        setHasApiKey(Boolean(data.hasApiKey))
       }
     } catch (error) {
       logToClient('error', 'Failed to fetch settings:', { error: error instanceof Error ? error.message : error })
@@ -408,8 +412,11 @@ export default function BookshelfSettingsPage() {
         text: 'Bookshelf settings saved successfully!',
       })
 
-      // Update initial form data to reflect saved state
-      setInitialFormData(formData)
+      // Update initial form data to reflect saved state (key field is cleared; stored key is now in use)
+      const savedSettings = { url: formData.url, apiKey: '' }
+      setFormData(savedSettings)
+      setInitialFormData(savedSettings)
+      setHasApiKey(true)
 
       // Optimistically lock the Scan Library button since saving kicks off a background sync
       setScanMessage(null)
@@ -476,12 +483,16 @@ export default function BookshelfSettingsPage() {
             <Input
               label="API Key"
               type="password"
-              placeholder="Your Bookshelf API key"
+              placeholder={
+                hasApiKey
+                  ? '•••••••••••••••• (Saved — leave blank to keep)'
+                  : 'Your Bookshelf API key'
+              }
               value={formData.apiKey}
               onChange={(e) =>
                 setFormData({ ...formData, apiKey: e.target.value })
               }
-              required
+              required={!hasApiKey}
             />
 
             <div className="bg-background-secondary border border-border rounded-md overflow-hidden">
@@ -563,7 +574,7 @@ export default function BookshelfSettingsPage() {
                 type="button"
                 variant="outline"
                 onClick={handleTestConnection}
-                disabled={testing || saving || !formData.url || !formData.apiKey}
+                disabled={testing || saving || !formData.url || !hasUsableApiKey}
                 className="flex-1"
               >
                 {testing ? 'Testing...' : 'Test Connection'}

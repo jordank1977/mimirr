@@ -84,6 +84,8 @@ export async function GET(
     }
     const query = searchParams.toString() ? `?${searchParams.toString()}` : ''
     const targetUrl = `${bookshelfUrl}/${targetRelativePath}${query}`
+    // Log-safe URL: omits the query string so the forwarded apikey is never written to logs
+    const safeTargetUrl = `${bookshelfUrl}/${targetRelativePath}`
 
     // Network resilience: AbortController with ~8-second timeout (Rule 4)
     const controller = new AbortController()
@@ -130,7 +132,7 @@ export async function GET(
       // Validate that Bookshelf returned actual image data, not HTML SPA fallback
       if (!contentType.toLowerCase().startsWith('image/')) {
         logger.debug('Bookshelf returned non-image response for MediaCover', {
-          targetUrl,
+          targetUrl: safeTargetUrl,
           contentType,
         })
 
@@ -172,7 +174,7 @@ export async function GET(
       })
     } catch (fetchError: any) {
       if (fetchError.name === 'AbortError') {
-        logger.warn('Bookshelf MediaCover proxy request timed out', { targetUrl })
+        logger.warn('Bookshelf MediaCover proxy request timed out', { targetUrl: safeTargetUrl })
         return new NextResponse('Gateway Timeout', { status: 504 })
       }
       throw fetchError

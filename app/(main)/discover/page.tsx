@@ -107,12 +107,6 @@ export default function DiscoverPage() {
         const personalizedResponse = await fetch('/api/discover/personalized?limit=10')
         const personalizedData = await personalizedResponse.json()
 
-        console.log('Personalized data received:', personalizedData)
-        console.log('hasRequests:', personalizedData.hasRequests)
-        console.log('popularForYou count:', personalizedData.popularForYou?.length)
-        console.log('newForYou count:', personalizedData.newForYou?.length)
-        console.log('authorsForYou count:', personalizedData.authorsForYou?.length)
-
         setPersonalizedBooks(personalizedData)
       } catch (error) {
         logToClient('error', 'Failed to fetch books:', { error: error instanceof Error ? error.message : error })
@@ -145,13 +139,6 @@ export default function DiscoverPage() {
       </div>
     )
   }
-
-  console.log('Rendering with personalizedBooks:', {
-    exists: !!personalizedBooks,
-    hasRequests: personalizedBooks?.hasRequests,
-    popularCount: personalizedBooks?.popularForYou?.length,
-    newCount: personalizedBooks?.newForYou?.length,
-  })
 
   return (
     <div className="space-y-4 md:space-y-8">

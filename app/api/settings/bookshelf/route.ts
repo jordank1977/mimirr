@@ -28,10 +28,13 @@ async function getHandler(request: NextRequest) {
       .where(eq(settings.key, 'bookshelf_api_key'))
       .limit(1)
 
+    // Never return the plaintext API key to the client (Rule 4)
+    const hasApiKey = Boolean(apiKeySetting[0]?.value)
+
     return NextResponse.json({
       url: urlSetting[0]?.value || '',
-      apiKey: apiKeySetting[0]?.value || '',
-      configured: urlSetting.length > 0 && apiKeySetting.length > 0,
+      hasApiKey,
+      configured: urlSetting.length > 0 && hasApiKey,
     })
   } catch (error) {
     if (error instanceof Error && error.message.includes('Authentication')) {
@@ -56,11 +59,32 @@ async function postHandler(request: NextRequest) {
 
     // Validate input
     const validatedData = bookshelfSettingsSchema.parse(body)
+    const newApiKey = validatedData.apiKey?.trim() || ''
+
+    let effectiveApiKey = newApiKey
+
+    // If API key is omitted, fall back to the stored key
+    if (!effectiveApiKey) {
+      const apiKeySetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'bookshelf_api_key'))
+        .limit(1)
+
+      effectiveApiKey = apiKeySetting[0]?.value || ''
+
+      if (!effectiveApiKey) {
+        return NextResponse.json(
+          { error: 'API key is required but no existing API key was found.' },
+          { status: 400 }
+        )
+      }
+    }
 
     // Test connection
     const isConnected = await BookshelfService.testConnection({
       url: validatedData.url,
-      apiKey: validatedData.apiKey,
+      apiKey: effectiveApiKey,
     })
 
     if (!isConnected) {
@@ -91,30 +115,32 @@ async function postHandler(request: NextRequest) {
         },
       })
 
-    // Upsert API key setting
-    await db
-      .insert(settings)
-      .values({
-        key: 'bookshelf_api_key',
-        value: validatedData.apiKey,
-        category: 'bookshelf',
-        updatedAt: now,
-        updatedBy: user.userId,
-      })
-      .onConflictDoUpdate({
-        target: settings.key,
-        set: {
-          value: validatedData.apiKey,
+    // Upsert API key setting - only if a new API key was provided
+    if (newApiKey) {
+      await db
+        .insert(settings)
+        .values({
+          key: 'bookshelf_api_key',
+          value: newApiKey,
+          category: 'bookshelf',
           updatedAt: now,
           updatedBy: user.userId,
-        },
-      })
+        })
+        .onConflictDoUpdate({
+          target: settings.key,
+          set: {
+            value: newApiKey,
+            updatedAt: now,
+            updatedBy: user.userId,
+          },
+        })
+    }
 
     // Sync quality profiles from Bookshelf
     try {
       await BookshelfService.syncQualityProfiles({
         url: validatedData.url,
-        apiKey: validatedData.apiKey,
+        apiKey: effectiveApiKey,
       })
     } catch (syncError) {
       // Log but don't fail the request - profiles can be synced later

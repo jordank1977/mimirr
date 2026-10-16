@@ -27,21 +27,66 @@ export const logDir = IS_PROD
   : path.join(process.cwd(), 'logs')
 
 
-// Sensitive fields to redact
+// Sensitive fields to redact (fast-redact key paths, up to two levels deep)
 const redactFields = [
   'password',
   '*.password',
+  '*.*.password',
+  'passwordHash',
+  '*.passwordHash',
   'token',
   '*.token',
+  '*.*.token',
+  'accessToken',
+  '*.accessToken',
+  'refreshToken',
+  '*.refreshToken',
   'apiKey',
   '*.apiKey',
+  '*.*.apiKey',
   'webhookUrl',
   '*.webhookUrl',
+  'discordWebhookUrl',
+  '*.discordWebhookUrl',
   'cookie',
   '*.cookie',
   'authorization',
-  '*.authorization'
+  '*.authorization',
+  'headers.authorization',
+  'headers["x-api-key"]',
+  'headers["X-Api-Key"]',
 ]
+
+// Query-string secrets embedded inside string values (e.g. `?apikey=abc123`).
+// fast-redact only matches object keys, so URLs containing secrets must be scrubbed separately.
+const QUERY_SECRET_PATTERN = /([?&](?:apikey|api_key|token|access_token|password)=)[^&#\s"']*/gi
+
+function sanitizeString(value: string): string {
+  return value.replace(QUERY_SECRET_PATTERN, '$1[REDACTED]')
+}
+
+/**
+ * Mask query-string secrets in a log message or in top-level string properties of a log payload.
+ * Nested key-based secrets are handled by Pino's `redact` configuration.
+ */
+export function sanitizeLogData(data: unknown): unknown {
+  if (typeof data === 'string') return sanitizeString(data)
+  if (data === null || typeof data !== 'object' || Array.isArray(data) || data instanceof Error) {
+    return data
+  }
+  const record = data as Record<string, unknown>
+  let sanitized: Record<string, unknown> | undefined
+  for (const [key, value] of Object.entries(record)) {
+    if (typeof value === 'string') {
+      const cleaned = sanitizeString(value)
+      if (cleaned !== value) {
+        sanitized = sanitized ?? { ...record }
+        sanitized[key] = cleaned
+      }
+    }
+  }
+  return sanitized ?? data
+}
 
 // Initialize Pino
 const createLogger = () => {
@@ -178,28 +223,33 @@ function normalizeErrorPayload(data: unknown): Record<string, unknown> | undefin
 
 export const logger = {
   info: (message: string, data?: unknown) => {
-    if (data !== undefined) pinoLogger.info(data, message)
-    else pinoLogger.info(message)
+    const msg = sanitizeString(message)
+    if (data !== undefined) pinoLogger.info(sanitizeLogData(data), msg)
+    else pinoLogger.info(msg)
   },
   warn: (message: string, data?: unknown) => {
-    if (data !== undefined) pinoLogger.warn(data, message)
-    else pinoLogger.warn(message)
+    const msg = sanitizeString(message)
+    if (data !== undefined) pinoLogger.warn(sanitizeLogData(data), msg)
+    else pinoLogger.warn(msg)
   },
   error: (message: string, data?: unknown) => {
+    const msg = sanitizeString(message)
     const normalized = normalizeErrorPayload(data)
     if (normalized !== undefined) {
-      pinoLogger.error(normalized, message)
+      pinoLogger.error(sanitizeLogData(normalized), msg)
     } else {
-      pinoLogger.error(message)
+      pinoLogger.error(msg)
     }
   },
   debug: (message: string, data?: unknown) => {
-    if (data !== undefined) pinoLogger.debug(data, message)
-    else pinoLogger.debug(message)
+    const msg = sanitizeString(message)
+    if (data !== undefined) pinoLogger.debug(sanitizeLogData(data), msg)
+    else pinoLogger.debug(msg)
   },
   trace: (message: string, data?: unknown) => {
-    if (data !== undefined) pinoLogger.trace(data, message)
-    else pinoLogger.trace(message)
+    const msg = sanitizeString(message)
+    if (data !== undefined) pinoLogger.trace(sanitizeLogData(data), msg)
+    else pinoLogger.trace(msg)
   },
 }
 

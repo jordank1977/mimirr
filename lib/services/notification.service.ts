@@ -298,7 +298,7 @@ export class NotificationService {
         .where(eq(users.role, 'admin'))
 
       const adminIds = admins.map((a) => a.id)
-      logger.info('Found admin users', {
+      logger.debug('Found admin users', {
         count: admins.length,
         admins: admins.map(a => ({ id: a.id, username: a.username }))
       })

@@ -67,7 +67,7 @@ export async function checkBookInLibrary(
           try {
             const liveBook = await apiGet<any>(config, `/api/v1/book/${idMatch[0].bookshelfId}`)
             if (liveBook && liveBook.id) {
-              logger.info('Book found in Bookshelf library (ID match)', {
+              logger.debug('Book found in Bookshelf library (ID match)', {
                 foreignBookId,
                 status: idMatch[0].status,
                 bookshelfId: idMatch[0].bookshelfId,
@@ -87,7 +87,7 @@ export async function checkBookInLibrary(
               })
               await db.delete(libraryBooks).where(eq(libraryBooks.foreignBookId, foreignBookId))
             } else {
-              logger.info('Book found in Bookshelf library cache (fallback on network error)', {
+              logger.debug('Book found in Bookshelf library cache (fallback on network error)', {
                 foreignBookId,
                 status: idMatch[0].status,
                 bookshelfId: idMatch[0].bookshelfId,
@@ -100,7 +100,7 @@ export async function checkBookInLibrary(
             }
           }
         } else {
-          logger.info('Book found in Bookshelf library (ID match)', {
+          logger.debug('Book found in Bookshelf library (ID match)', {
             foreignBookId,
             status: idMatch[0].status,
             bookshelfId: idMatch[0].bookshelfId,
@@ -142,7 +142,7 @@ export async function checkBookInLibrary(
             try {
               const liveBook = await apiGet<any>(config, `/api/v1/book/${finalMatch.bookshelfId}`)
               if (liveBook && liveBook.id) {
-                logger.info('Book found in Bookshelf library (Fuzzy match)', {
+                logger.debug('Book found in Bookshelf library (Fuzzy match)', {
                   title: bookTitle,
                   authorName,
                   status: finalMatch.status,
@@ -171,7 +171,7 @@ export async function checkBookInLibrary(
               }
             }
           } else {
-            logger.info('Book found in Bookshelf library (Fuzzy match)', {
+            logger.debug('Book found in Bookshelf library (Fuzzy match)', {
               title: bookTitle,
               authorName,
               status: finalMatch.status,
@@ -188,7 +188,7 @@ export async function checkBookInLibrary(
       }
     }
 
-    logger.info('Book not found in Bookshelf library', {
+    logger.debug('Book not found in Bookshelf library', {
       foreignBookId,
       searchTitle: bookTitle,
       searchAuthor: authorName,

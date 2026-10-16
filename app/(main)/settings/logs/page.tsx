@@ -22,7 +22,20 @@ export default function LogsSettingsPage() {
   const [logContent, setLogContent] = useState<string>('')
   const [loadingContent, setLoadingContent] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [levelFilter, setLevelFilter] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('')
+  const [tailLines, setTailLines] = useState<number>(500)
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
   const logContainerRef = useRef<HTMLPreElement>(null)
+
+  // 250ms debounce for search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const fetchLogContent = useCallback(async (isAutoRefresh = false) => {
     if (!selectedLog) {
@@ -34,7 +47,18 @@ export default function LogsSettingsPage() {
     else setIsRefreshing(true)
 
     try {
-      const response = await fetch(`/api/logs/view?file=${encodeURIComponent(selectedLog)}`)
+      const params = new URLSearchParams({
+        file: selectedLog,
+        tail: String(tailLines),
+      })
+      if (levelFilter) {
+        params.set('level', levelFilter)
+      }
+      if (debouncedSearch.trim()) {
+        params.set('search', debouncedSearch.trim())
+      }
+
+      const response = await fetch(`/api/logs/view?${params.toString()}`)
       if (response.ok) {
         const text = await response.text()
 
@@ -50,7 +74,6 @@ export default function LogsSettingsPage() {
 
         // Only auto-scroll if user was already at the bottom
         if (isAtBottom && container) {
-          // Use setTimeout to ensure DOM has updated before scrolling
           setTimeout(() => {
             if (logContainerRef.current) {
               logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
@@ -67,78 +90,89 @@ export default function LogsSettingsPage() {
       if (!isAutoRefresh) setLoadingContent(false)
       else setIsRefreshing(false)
     }
-  }, [selectedLog])
+  }, [selectedLog, tailLines, levelFilter, debouncedSearch])
 
-  useEffect(() => {
-    async function fetchSettings() {
-      try {
-        const response = await fetch('/api/settings/logs')
-        if (response.ok) {
-          const data = await response.json()
-          setLogLevel(data.level)
-        }
-      } catch (error) {
-        logToClient('error', 'Failed to fetch log settings:', { error: error instanceof Error ? error.message : error })
-      } finally {
-        setLoading(false)
+  const refreshLogFilesList = useCallback(async () => {
+    try {
+      const response = await fetch('/api/logs')
+      if (response.ok) {
+        const data: LogFile[] = await response.json()
+        setLogFiles(data)
       }
+    } catch {
+      // Fail silently on background metadata refresh
     }
+  }, [])
 
-    async function fetchLogFiles() {
+  // Deduplicated initial mount fetch
+  useEffect(() => {
+    async function initSettingsAndLogs() {
       try {
-        const response = await fetch('/api/logs')
-        if (response.ok) {
-          const data = await response.json()
-          setLogFiles(data)
+        const [settingsRes, logsRes] = await Promise.all([
+          fetch('/api/settings/logs'),
+          fetch('/api/logs'),
+        ])
+
+        let currentLevel = 'info'
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json()
+          currentLevel = settingsData.level || 'info'
+          setLogLevel(currentLevel)
+        }
+
+        if (logsRes.ok) {
+          const filesData: LogFile[] = await logsRes.json()
+          setLogFiles(filesData)
 
           // Auto-select appropriate stream on initial load if no log is selected
-          if (data.length > 0 && !selectedLog) {
-            // Check if we already fetched logLevel setting
-            fetch('/api/settings/logs').then(res => res.json()).then(settingsData => {
-               if (settingsData.level === 'debug') {
-                 const debugFiles = data.filter((f: LogFile) => f.name.includes('debug'))
-                 if (debugFiles.length > 0) {
-                   setSelectedLog(debugFiles[0].name)
-                   return
-                 }
-               }
-               const stdFiles = data.filter((f: LogFile) => !f.name.includes('debug'))
-               if (stdFiles.length > 0) {
-                 setSelectedLog(stdFiles[0].name)
-               } else {
-                 setSelectedLog(data[0].name)
-               }
-            }).catch(() => setSelectedLog(data[0].name))
+          if (filesData.length > 0 && !selectedLog) {
+            if (currentLevel === 'debug') {
+              const debugFiles = filesData.filter((f) => f.name.includes('debug'))
+              if (debugFiles.length > 0) {
+                setSelectedLog(debugFiles[0].name)
+                return
+              }
+            }
+            const stdFiles = filesData.filter((f) => !f.name.includes('debug'))
+            if (stdFiles.length > 0) {
+              setSelectedLog(stdFiles[0].name)
+            } else {
+              setSelectedLog(filesData[0].name)
+            }
           }
         }
       } catch (error) {
-        logToClient('error', 'Failed to fetch log files:', { error: error instanceof Error ? error.message : error })
+        logToClient('error', 'Failed to initialize log settings and files:', {
+          error: error instanceof Error ? error.message : error,
+        })
       } finally {
+        setLoading(false)
         setLoadingLogs(false)
       }
     }
 
-    fetchSettings()
-    fetchLogFiles()
+    initSettingsAndLogs()
   }, [])
 
+  // Refetch content when selectedLog or viewer controls change
   useEffect(() => {
     fetchLogContent()
-  }, [selectedLog, fetchLogContent])
+  }, [fetchLogContent])
 
-  // Setup auto-polling
+  // Setup auto-polling with silent metadata refresh
   useEffect(() => {
-    if (!selectedLog) return
+    if (!autoRefresh || !selectedLog) return
 
     const intervalId = setInterval(() => {
       // Only auto-refresh if the page is visible
       if (document.visibilityState === 'visible') {
         fetchLogContent(true)
+        refreshLogFilesList()
       }
     }, 5000)
 
     return () => clearInterval(intervalId)
-  }, [selectedLog, fetchLogContent])
+  }, [autoRefresh, selectedLog, fetchLogContent, refreshLogFilesList])
 
   const handleSave = async () => {
     setSaving(true)
@@ -179,7 +213,7 @@ export default function LogsSettingsPage() {
   }
 
   const handleViewLog = (filename: string) => {
-    window.open(`/api/logs/view?file=${encodeURIComponent(filename)}`, '_blank')
+    window.open(`/api/logs/view?file=${encodeURIComponent(filename)}&tail=0`, '_blank')
   }
 
   const handleSelectLog = (filename: string) => {
@@ -216,7 +250,7 @@ export default function LogsSettingsPage() {
               <select
                 value={logLevel}
                 onChange={(e) => setLogLevel(e.target.value)}
-                className="w-full h-10 px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full h-10 px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
               >
                 <option value="info">Info (Default)</option>
                 <option value="warn">Warning</option>
@@ -293,13 +327,21 @@ export default function LogsSettingsPage() {
         )}
 
         {selectedLog && (
-          <div className="mt-6">
-            <div className="flex justify-between items-center mb-2">
+          <div className="mt-6 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h3 className="text-lg font-medium text-foreground flex items-center">
                 Log Content: {selectedLog}
                 {isRefreshing && <span className="ml-3 text-xs text-foreground-muted animate-pulse">Refreshing...</span>}
               </h3>
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAutoRefresh(prev => !prev)}
+                  className={`text-xs ${!autoRefresh ? 'text-amber-500 border-amber-500/50' : ''}`}
+                >
+                  {autoRefresh ? 'Auto-Refresh: On (5s)' : 'Auto-Refresh: Paused'}
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -319,13 +361,52 @@ export default function LogsSettingsPage() {
                 </Button>
               </div>
             </div>
+
+            {/* Filter & Viewer Toolbar */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 bg-muted/20 border border-border rounded-md items-center">
+              <div className="sm:col-span-6">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter by text or [reqId]..."
+                  className="w-full h-9 px-3 py-1.5 bg-background border border-border rounded-md text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <select
+                  value={levelFilter}
+                  onChange={(e) => setLevelFilter(e.target.value)}
+                  className="w-full h-9 px-3 py-1.5 bg-background border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">All Levels</option>
+                  <option value="debug">Debug+</option>
+                  <option value="info">Info+</option>
+                  <option value="warn">Warning+</option>
+                  <option value="error">Error Only</option>
+                </select>
+              </div>
+              <div className="sm:col-span-3">
+                <select
+                  value={tailLines}
+                  onChange={(e) => setTailLines(Number(e.target.value))}
+                  className="w-full h-9 px-3 py-1.5 bg-background border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value={200}>Last 200 lines</option>
+                  <option value={500}>Last 500 lines</option>
+                  <option value={1000}>Last 1,000 lines</option>
+                  <option value={0}>All lines</option>
+                </select>
+              </div>
+            </div>
+
             <div className="border border-border rounded-md bg-background relative">
               {loadingContent ? (
                 <div className="p-4 text-center text-foreground-muted">Loading log content...</div>
               ) : (
                 <pre
                   ref={logContainerRef}
-                  className="p-4 overflow-auto max-h-[500px] text-sm text-foreground whitespace-pre-wrap"
+                  className="p-4 overflow-auto max-h-[500px] text-sm text-foreground whitespace-pre-wrap font-mono"
                 >
                   {logContent || 'No content available'}
                 </pre>

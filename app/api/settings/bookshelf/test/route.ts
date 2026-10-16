@@ -4,6 +4,8 @@ import { requireAdmin, handleAuthError } from '@/lib/middleware/auth.middleware'
 import { bookshelfSettingsSchema } from '@/lib/utils/validation'
 import { BookshelfService } from '@/lib/services/bookshelf.service'
 import { logger } from '@/lib/utils/logger'
+import { db, settings } from '@/lib/db'
+import { eq } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,10 +20,30 @@ async function postHandler(request: NextRequest) {
     // Validate input
     const validatedData = bookshelfSettingsSchema.parse(body)
 
+    let effectiveApiKey = validatedData.apiKey?.trim() || ''
+
+    // If API key is omitted, fall back to the stored key
+    if (!effectiveApiKey) {
+      const apiKeySetting = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, 'bookshelf_api_key'))
+        .limit(1)
+
+      effectiveApiKey = apiKeySetting[0]?.value || ''
+
+      if (!effectiveApiKey) {
+        return NextResponse.json(
+          { error: 'API key is required but no existing API key was found.' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Test connection
     const isConnected = await BookshelfService.testConnection({
       url: validatedData.url,
-      apiKey: validatedData.apiKey,
+      apiKey: effectiveApiKey,
     })
 
     if (!isConnected) {
@@ -36,7 +58,7 @@ async function postHandler(request: NextRequest) {
     try {
       const qualityProfiles = await BookshelfService.getQualityProfiles({
         url: validatedData.url,
-        apiKey: validatedData.apiKey,
+        apiKey: effectiveApiKey,
       })
 
       if (Array.isArray(qualityProfiles)) {

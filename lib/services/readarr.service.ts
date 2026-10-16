@@ -228,13 +228,15 @@ export class ReadarrService {
           // Upsert all mapped books into cache sequentially
           for (const mappedBook of mappedBooks) {
             try {
-              logger.info(`[HYDRATE] Caching book`, { title: mappedBook.title, id: mappedBook.id });
+              logger.debug(`[HYDRATE] Caching book`, { title: mappedBook.title, id: mappedBook.id });
               // Cast it to the shape BookService expects
               await BookService.cacheBook(mappedBook as any);
             } catch (err) {
               logger.error(`Failed to immediately cache book`, { error: err instanceof Error ? err.message : err, bookId: mappedBook.id });
             }
           }
+
+          logger.info('Readarr search completed', { query, resultsCount: mappedBooks.length });
 
           return mappedBooks;
         }

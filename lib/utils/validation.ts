@@ -70,7 +70,8 @@ export function sanitizeBookshelfUrl(rawUrl: string): string {
 // Settings schemas
 export const bookshelfSettingsSchema = z.object({
   url: z.string().url('Invalid URL').transform(sanitizeBookshelfUrl),
-  apiKey: z.string().min(1, 'API key is required'),
+  // Optional: when omitted/blank, routes fall back to the stored bookshelf_api_key
+  apiKey: z.string().optional(),
 })
 
 export const bookloreSettingsSchema = z.object({
